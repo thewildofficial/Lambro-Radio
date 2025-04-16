@@ -1,10 +1,21 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { ShareIcon, ArrowDownTrayIcon, PlayIcon, PauseIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+    ShareIcon,
+    ArrowDownTrayIcon,
+    PlayIcon,
+    PauseIcon,
+    SpeakerWaveIcon,
+    SpeakerXMarkIcon,
+    BackwardIcon,
+    ForwardIcon,
+} from '@heroicons/react/24/outline';
 import { nanoid } from 'nanoid';
 import WaveformVisualizer from './WaveformVisualizer';
 import ShareDialog from './ShareDialog';
+import VolumeControl from './VolumeControl';
+import TempoControl from './TempoControl';
 
 interface AudioInfo {
     audio_stream_url: string;
@@ -36,6 +47,12 @@ const Player: React.FC = () => {
     const [shareUrl, setShareUrl] = useState<string>('');
     const [sessionId] = useState(() => nanoid());
     const [isPlaying, setIsPlaying] = useState(false);
+    const [volume, setVolume] = useState(1);
+    const [prevVolume, setPrevVolume] = useState(1);
+    const [tempo, setTempo] = useState(1);
+    const [showTooltip, setShowTooltip] = useState<string | null>(null);
+    const tooltipTimeoutRef = useRef<NodeJS.Timeout>();
+    const [keyboardShortcuts, setKeyboardShortcuts] = useState(false);
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
@@ -195,16 +212,93 @@ const Player: React.FC = () => {
         document.body.removeChild(a);
     };
 
-    const handlePlayPause = () => {
+    const handlePlayPause = useCallback(() => {
         if (!audioRef.current) return;
         
         if (isPlaying) {
             audioRef.current.pause();
         } else {
-            audioRef.current.play();
+            audioRef.current.play().catch(err => {
+                console.error('Playback failed:', err);
+                setError('Playback failed. Please try again.');
+            });
         }
         setIsPlaying(!isPlaying);
-    };
+    }, [isPlaying]);
+
+    const handleVolumeChange = useCallback((newVolume: number) => {
+        if (!audioRef.current) return;
+        audioRef.current.volume = newVolume;
+        setVolume(newVolume);
+    }, []);
+
+    const toggleMute = useCallback(() => {
+        if (!audioRef.current) return;
+        if (volume > 0) {
+            setPrevVolume(volume);
+            handleVolumeChange(0);
+        } else {
+            handleVolumeChange(prevVolume);
+        }
+    }, [volume, prevVolume, handleVolumeChange]);
+
+    const handleTempoChange = useCallback((newTempo: number) => {
+        if (!audioRef.current) return;
+        audioRef.current.playbackRate = newTempo;
+        setTempo(newTempo);
+    }, []);
+
+    const showTemporaryTooltip = useCallback((message: string) => {
+        if (tooltipTimeoutRef.current) {
+            clearTimeout(tooltipTimeoutRef.current);
+        }
+        setShowTooltip(message);
+        tooltipTimeoutRef.current = setTimeout(() => {
+            setShowTooltip(null);
+        }, 2000);
+    }, []);
+
+    useEffect(() => {
+        const handleKeyPress = (e: KeyboardEvent) => {
+            if (!audioRef.current || isProcessing) return;
+
+            switch (e.key.toLowerCase()) {
+                case ' ':
+                    e.preventDefault();
+                    handlePlayPause();
+                    showTemporaryTooltip(isPlaying ? 'Paused' : 'Playing');
+                    break;
+                case 'm':
+                    toggleMute();
+                    showTemporaryTooltip(volume > 0 ? 'Muted' : 'Unmuted');
+                    break;
+                case 'arrowup':
+                    e.preventDefault();
+                    handleVolumeChange(Math.min(1, volume + 0.1));
+                    showTemporaryTooltip(`Volume: ${Math.round(volume * 100)}%`);
+                    break;
+                case 'arrowdown':
+                    e.preventDefault();
+                    handleVolumeChange(Math.max(0, volume - 0.1));
+                    showTemporaryTooltip(`Volume: ${Math.round(volume * 100)}%`);
+                    break;
+                case '[':
+                    handleTempoChange(Math.max(0.5, tempo - 0.1));
+                    showTemporaryTooltip(`Speed: ${tempo.toFixed(1)}x`);
+                    break;
+                case ']':
+                    handleTempoChange(Math.min(2, tempo + 0.1));
+                    showTemporaryTooltip(`Speed: ${tempo.toFixed(1)}x`);
+                    break;
+                case '?':
+                    setKeyboardShortcuts(prev => !prev);
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [handlePlayPause, handleVolumeChange, handleTempoChange, isPlaying, volume, tempo, isProcessing, toggleMute, showTemporaryTooltip]);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -226,7 +320,7 @@ const Player: React.FC = () => {
     }, [processedAudioUrl]);
 
     return (
-        <div className="p-4 max-w-4xl mx-auto bg-gray-800 text-white rounded-lg shadow-lg space-y-6">
+        <div className="p-4 max-w-4xl mx-auto bg-gray-800 text-white rounded-lg shadow-lg space-y-6 relative">
             <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
                 Lambro Radio
             </h2>
@@ -256,15 +350,15 @@ const Player: React.FC = () => {
             )}
 
             {audioInfo && !isLoading && (
-                <div className="mt-6 p-6 bg-gray-700 rounded-lg space-y-4">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <h3 className="text-xl font-semibold">{audioInfo.title}</h3>
+                <div className="mt-6 p-6 bg-gray-700 rounded-lg space-y-4 relative overflow-hidden group">
+                    <div className="flex items-start justify-between group-hover:opacity-100 transition-opacity">
+                        <div className="flex-1">
+                            <h3 className="text-xl font-semibold truncate hover:text-clip">{audioInfo.title}</h3>
                             <p className="text-sm text-gray-400">
                                 Duration: {Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}
                             </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                                 onClick={handleShare}
                                 className="p-2 hover:bg-gray-600 rounded-lg transition-colors"
@@ -284,7 +378,7 @@ const Player: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg">
+                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg transition-all hover:shadow-lg">
                         <label htmlFor="frequency-select" className="text-sm font-medium whitespace-nowrap">
                             Retune A4 to:
                         </label>
@@ -293,7 +387,7 @@ const Player: React.FC = () => {
                             value={selectedFrequency === null ? 'null' : String(selectedFrequency)}
                             onChange={(e) => setSelectedFrequency(e.target.value === 'null' ? null : Number(e.target.value))}
                             disabled={isProcessing}
-                            className="flex-grow p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-70 text-white"
+                            className="flex-grow p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-70 text-white transition-all hover:border-indigo-400"
                         >
                             {TARGET_FREQUENCIES.map(freq => (
                                 <option key={freq.label} value={freq.value === null ? 'null' : String(freq.value)}>
@@ -303,30 +397,67 @@ const Player: React.FC = () => {
                         </select>
                     </div>
 
-                    <div className="mt-4">
+                    <div className="mt-4 relative group">
                         <WaveformVisualizer
                             audioUrl={processedAudioUrl}
                             isProcessing={isProcessing}
                             onTimeUpdate={setCurrentTime}
+                            isPlaying={isPlaying}
+                            onPlayPause={setIsPlaying}
                         />
+                        
+                        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-gray-800 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={handlePlayPause}
+                                    disabled={!processedAudioUrl || isProcessing}
+                                    className="p-3 bg-indigo-600 hover:bg-indigo-700 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                                >
+                                    {isPlaying ? (
+                                        <PauseIcon className="w-6 h-6" />
+                                    ) : (
+                                        <PlayIcon className="w-6 h-6" />
+                                    )}
+                                </button>
+                                
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleTempoChange(Math.max(0.5, tempo - 0.1))}
+                                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                    >
+                                        <BackwardIcon className="w-4 h-4" />
+                                    </button>
+                                    <span className="text-sm font-medium">{tempo.toFixed(1)}x</span>
+                                    <button
+                                        onClick={() => handleTempoChange(Math.min(2, tempo + 0.1))}
+                                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                    >
+                                        <ForwardIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={toggleMute}
+                                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                >
+                                    {volume === 0 ? (
+                                        <SpeakerXMarkIcon className="w-5 h-5" />
+                                    ) : (
+                                        <SpeakerWaveIcon className="w-5 h-5" />
+                                    )}
+                                </button>
+                                <VolumeControl
+                                    volume={volume}
+                                    onChange={handleVolumeChange}
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                    <div className="flex items-center justify-center gap-4">
-                        <button
-                            onClick={handlePlayPause}
-                            disabled={!processedAudioUrl || isProcessing}
-                            className="p-3 bg-indigo-600 hover:bg-indigo-700 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            {isPlaying ? (
-                                <PauseIcon className="w-6 h-6" />
-                            ) : (
-                                <PlayIcon className="w-6 h-6" />
-                            )}
-                        </button>
-
-                        <div className="text-sm text-gray-400">
-                            {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')} / {Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}
-                        </div>
+                    <div className="text-sm text-gray-400 text-center transition-all hover:text-indigo-400">
+                        {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')} / {Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}
                     </div>
 
                     <audio
@@ -335,6 +466,34 @@ const Player: React.FC = () => {
                         onEnded={() => setIsPlaying(false)}
                         className="hidden"
                     />
+                </div>
+            )}
+
+            {showTooltip && (
+                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-fade-in-up">
+                    {showTooltip}
+                </div>
+            )}
+
+            {keyboardShortcuts && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 space-y-4">
+                        <h3 className="text-xl font-semibold">Keyboard Shortcuts</h3>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>Space</div><div>Play/Pause</div>
+                            <div>M</div><div>Mute/Unmute</div>
+                            <div>↑/↓</div><div>Volume</div>
+                            <div>[/]</div><div>Adjust Speed</div>
+                            <div>←/→</div><div>Seek 5s</div>
+                            <div>?</div><div>Show/Hide Shortcuts</div>
+                        </div>
+                        <button
+                            onClick={() => setKeyboardShortcuts(false)}
+                            className="w-full mt-4 p-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
                 </div>
             )}
 
