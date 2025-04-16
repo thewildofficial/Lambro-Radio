@@ -95,16 +95,12 @@ const WaveformVisualizer = ({
         wavesurferRef.current.load(audioUrl);
     }, [audioUrl]);
 
-    useEffect(() => {
-        const wavesurfer = wavesurferRef.current;
-        if (!wavesurfer) return;
-
-        if (isPlaying) {
-            wavesurfer.play();
-        } else {
-            wavesurfer.pause();
-        }
-    }, [isPlaying]);
+    // Playback is managed by the HTML audio element; disable Wavesurfer playback to avoid duplicate audio
+    // useEffect(() => {
+    //     const wavesurfer = wavesurferRef.current;
+    //     if (!wavesurfer) return;
+    //     if (isPlaying) wavesurfer.play(); else wavesurfer.pause();
+    // }, [isPlaying]);
 
     // Keyboard shortcuts
     useEffect(() => {

@@ -48,7 +48,7 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
             <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 relative">
                 <button
                     onClick={onClose}
@@ -65,7 +65,7 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
                             type="text"
                             value={url}
                             readOnly
-                            className="flex-1 bg-transparent text-white text-sm outline-none"
+                            className="flex-1 bg-gray-700 bg-opacity-30 text-white text-sm outline-none p-2 rounded-lg"
                         />
                         <button
                             onClick={handleCopy}
@@ -76,7 +76,7 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
                         </button>
                     </div>
 
-                    {navigator.share && (
+                    {typeof navigator.share === 'function' && (
                         <button
                             onClick={handleShare}
                             className="w-full flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-3 transition-colors"

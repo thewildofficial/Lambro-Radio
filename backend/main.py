@@ -88,7 +88,7 @@ def calculate_semitones(target_hz, base_hz=440.0):
         return 0
     return 12 * math.log2(target_hz / base_hz)
 
-async def process_and_stream_audio_generator(audio_url: str, target_frequency: float | None):
+async def process_and_stream_audio_generator(audio_url: str, target_frequency: float | None, ai_preset: bool = False):
     temp_output_path = None
     ffmpeg_process = None
     try:
@@ -96,17 +96,12 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
         with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_output_file:
             temp_output_path = temp_output_file.name
 
-        print(f"Starting ffmpeg to process URL...")
-        ffmpeg_command = [
-            'ffmpeg',
-            '-i', audio_url,
-            '-vn',
-            '-acodec', 'pcm_s16le',
-            '-ar', '44100',
-            '-ac', '2',
-            '-f', 'wav',
-            '-'
-        ]
+        print(f"Starting ffmpeg to process URL with{' AI preset' if ai_preset else ''}...")
+        ffmpeg_command = ['ffmpeg', '-i', audio_url]
+        if ai_preset:
+            # Enhance reverb via chained echo filters for richer tail
+            ffmpeg_command += ['-af', 'aecho=0.8:0.88:60|120:0.4|0.3, aecho=0.6:0.7:100|200:0.3|0.2']
+        ffmpeg_command += ['-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '2', '-f', 'wav', '-']
 
         ffmpeg_process = await asyncio.create_subprocess_exec(
             *ffmpeg_command,
@@ -194,6 +189,7 @@ async def stream_processed_audio_endpoint(
 ):
     audio_stream_url = payload.get("audio_stream_url")
     target_frequency = payload.get("target_frequency")
+    ai_preset = payload.get("ai_preset", False)
 
     if not audio_stream_url:
         raise HTTPException(status_code=400, detail="audio_stream_url is required")
@@ -208,7 +204,7 @@ async def stream_processed_audio_endpoint(
              raise HTTPException(status_code=400, detail="Invalid target_frequency value. Must be a positive number.")
 
     return StreamingResponse(
-        process_and_stream_audio_generator(audio_stream_url, target_freq_float),
+        process_and_stream_audio_generator(audio_stream_url, target_freq_float, ai_preset),
         media_type="audio/wav"
     )
 

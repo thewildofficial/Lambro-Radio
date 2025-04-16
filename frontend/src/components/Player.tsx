@@ -10,12 +10,15 @@ import {
     SpeakerXMarkIcon,
     BackwardIcon,
     ForwardIcon,
+    BoltIcon,
 } from '@heroicons/react/24/outline';
 import { nanoid } from 'nanoid';
 import WaveformVisualizer from './WaveformVisualizer';
 import ShareDialog from './ShareDialog';
 import VolumeControl from './VolumeControl';
 import TempoControl from './TempoControl';
+import PresetManager from './PresetManager';
+import History from './History';
 
 interface AudioInfo {
     audio_stream_url: string;
@@ -53,6 +56,7 @@ const Player: React.FC = () => {
     const [showTooltip, setShowTooltip] = useState<string | null>(null);
     const tooltipTimeoutRef = useRef<NodeJS.Timeout>();
     const [keyboardShortcuts, setKeyboardShortcuts] = useState(false);
+    const [aiPresetActive, setAiPresetActive] = useState(false);
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
@@ -126,6 +130,8 @@ const Player: React.FC = () => {
                     body: JSON.stringify({
                         audio_stream_url: audioInfo.audio_stream_url,
                         target_frequency: selectedFrequency,
+                        ai_preset: aiPresetActive,
+                        playback_rate: tempo,
                     }),
                 });
 
@@ -174,7 +180,7 @@ const Player: React.FC = () => {
             revokeCurrentObjectUrl();
             console.log("Cleanup effect ran");
         };
-    }, [audioInfo, selectedFrequency, backendUrl]);
+    }, [audioInfo, selectedFrequency, backendUrl, aiPresetActive, tempo]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -303,7 +309,7 @@ const Player: React.FC = () => {
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
-
+        
         const handleEnded = () => setIsPlaying(false);
         const handlePause = () => setIsPlaying(false);
         const handlePlay = () => setIsPlaying(true);
@@ -319,49 +325,67 @@ const Player: React.FC = () => {
         };
     }, [processedAudioUrl]);
 
-    return (
-        <div className="p-4 max-w-4xl mx-auto bg-gray-800 text-white rounded-lg shadow-lg space-y-6 relative">
-            <h2 className="text-3xl font-bold text-center bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
-                Lambro Radio
-            </h2>
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.playbackRate = tempo;
+        }
+    }, [processedAudioUrl, tempo]);
 
+    const applyAIPreset = () => {
+        setAiPresetActive(true);
+        setSelectedFrequency(528);
+        setTempo(0.75);
+        showTemporaryTooltip('Applying AI Magic preset...');
+        handleFetchAudioInfo();
+    };
+
+    return (
+        <div className="p-8 max-w-4xl mx-auto bg-gradient-to-br from-gray-800 to-gray-900 text-white rounded-2xl shadow-2xl ring-1 ring-indigo-600 space-y-8 relative overflow-hidden">
             <div className="flex gap-2">
                 <input
                     type="text"
                     value={youtubeUrl}
                     onChange={(e) => setYoutubeUrl(e.target.value)}
                     placeholder="Enter YouTube URL"
-                    className="flex-grow p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white"
+                    className="flex-grow p-4 rounded-xl bg-gray-700 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-gray-600 transition-colors text-white placeholder-gray-400"
                     disabled={isLoading || isProcessing}
                 />
                 <button
                     onClick={handleFetchAudioInfo}
                     disabled={isLoading || isProcessing}
-                    className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 ease-in-out"
+                    className="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-105 shadow-lg text-lg font-semibold"
                 >
                     {isLoading ? 'Loading...' : 'Load Audio'}
+                </button>
+                <button
+                    onClick={applyAIPreset}
+                    disabled={isLoading || isProcessing}
+                    className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-105 shadow-lg flex items-center gap-2"
+                >
+                    <BoltIcon className="w-5 h-5 text-white" />
+                    AI Magic
                 </button>
             </div>
 
             {error && (
-                <div className="p-4 bg-red-500 bg-opacity-20 border border-red-500 rounded-lg text-red-400 text-center">
+                <div className="p-4 bg-red-600 bg-opacity-25 border border-red-500 rounded-lg text-red-200 text-center shadow-inner">
                     {error}
                 </div>
             )}
 
             {audioInfo && !isLoading && (
-                <div className="mt-6 p-6 bg-gray-700 rounded-lg space-y-4 relative overflow-hidden group">
-                    <div className="flex items-start justify-between group-hover:opacity-100 transition-opacity">
+                <div className="mt-6 p-6 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl space-y-4 relative overflow-hidden ring-1 ring-indigo-600">
+                    <div className="flex items-start justify-between">
                         <div className="flex-1">
                             <h3 className="text-xl font-semibold truncate hover:text-clip">{audioInfo.title}</h3>
                             <p className="text-sm text-gray-400">
                                 Duration: {Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}
                             </p>
                         </div>
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-2">
                             <button
                                 onClick={handleShare}
-                                className="p-2 hover:bg-gray-600 rounded-lg transition-colors"
+                                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                                 title="Share"
                             >
                                 <ShareIcon className="w-5 h-5 text-indigo-400" />
@@ -369,7 +393,7 @@ const Player: React.FC = () => {
                             {processedAudioUrl && (
                                 <button
                                     onClick={handleDownload}
-                                    className="p-2 hover:bg-gray-600 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
                                     title="Download"
                                 >
                                     <ArrowDownTrayIcon className="w-5 h-5 text-indigo-400" />
@@ -378,7 +402,7 @@ const Player: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 bg-gray-800 p-3 rounded-lg transition-all hover:shadow-lg">
+                    <div className="flex items-center gap-3 bg-gray-800 p-4 rounded-lg border border-gray-600 hover:border-indigo-500 transition-colors transition-shadow">
                         <label htmlFor="frequency-select" className="text-sm font-medium whitespace-nowrap">
                             Retune A4 to:
                         </label>
@@ -387,7 +411,7 @@ const Player: React.FC = () => {
                             value={selectedFrequency === null ? 'null' : String(selectedFrequency)}
                             onChange={(e) => setSelectedFrequency(e.target.value === 'null' ? null : Number(e.target.value))}
                             disabled={isProcessing}
-                            className="flex-grow p-2 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-70 text-white transition-all hover:border-indigo-400"
+                            className="flex-grow p-2 rounded-lg bg-gray-700 border border-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-70 text-white transition-all hover:border-indigo-400"
                         >
                             {TARGET_FREQUENCIES.map(freq => (
                                 <option key={freq.label} value={freq.value === null ? 'null' : String(freq.value)}>
@@ -406,7 +430,7 @@ const Player: React.FC = () => {
                             onPlayPause={setIsPlaying}
                         />
                         
-                        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-gray-800 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-gray-800 to-transparent">
                             <div className="flex items-center gap-4">
                                 <button
                                     onClick={handlePlayPause}
@@ -476,7 +500,7 @@ const Player: React.FC = () => {
             )}
 
             {keyboardShortcuts && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 space-y-4">
                         <h3 className="text-xl font-semibold">Keyboard Shortcuts</h3>
                         <div className="grid grid-cols-2 gap-2 text-sm">
@@ -503,6 +527,10 @@ const Player: React.FC = () => {
                 url={shareUrl}
                 title={audioInfo?.title || ''}
             />
+            {audioInfo && (
+              <PresetManager currentFrequency={selectedFrequency} onSelect={(freq) => setSelectedFrequency(freq)} />
+            )}
+            <History onSelect={(url, freq) => { setYoutubeUrl(url); setSelectedFrequency(freq); handleFetchAudioInfo(); }} />
         </div>
     );
 };

@@ -19,10 +19,27 @@
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-geist-sans), sans-serif;
+  background: linear-gradient(135deg, #1a202c, #2d3748);
+  color: #e2e8f0;
+  min-height: 100vh;
+  scroll-behavior: smooth;
+}
+
+a { 
+  color: #63b3ed; 
+  text-decoration: none; 
+}
+
+button, input, select, textarea { 
+  font-family: inherit; 
 }
 
 @tailwind base;
