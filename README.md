@@ -137,6 +137,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgements
 
+- [Rubi (@DejaRu22)](https://twitter.com/DejaRu22) - Creator of the original LAMBRO RADIO YouTube channel, whose work inspired this application
 - [Rubber Band Library](https://breakfastquay.com/rubberband/) - High-quality audio processing
 - [wavesurfer.js](https://wavesurfer-js.org/) - Audio visualization
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube download library
