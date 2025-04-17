@@ -55,7 +55,6 @@ const Player: React.FC = () => {
     const currentObjectUrlRef = useRef<string | null>(null);
     const [shareDialogOpen, setShareDialogOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
-    const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [shareUrl, setShareUrl] = useState<string>('');
     const [sessionId] = useState(() => nanoid());
     const [isPlaying, setIsPlaying] = useState(false);
@@ -79,7 +78,7 @@ const Player: React.FC = () => {
 
     // Modify to accept optional URL argument
     const handleFetchAudioInfo = async (urlToFetch?: string) => {
-        const url = urlToFetch || youtubeUrl; // Use passed URL or state
+        const urlToUse = urlToFetch || youtubeUrl; // Use passed URL or state
         revokeCurrentObjectUrl();
         setAudioInfo(null);
         setProcessedAudioUrl(null);
@@ -97,20 +96,20 @@ const Player: React.FC = () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ url: youtubeUrl }),
+                body: JSON.stringify({ url: urlToUse }),
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData: { detail?: string } = await response.json();
                 throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
             }
 
             const data: AudioInfo = await response.json();
             setAudioInfo(data);
 
-        } catch (err: any) {
+        } catch (err: Error | unknown) {
             console.error("Error fetching audio info:", err);
-            setError(err.message || 'Failed to fetch audio info.');
+            setError(err instanceof Error ? err.message : 'Failed to fetch audio info.');
         } finally {
             setIsLoading(false);
         }
@@ -134,13 +133,16 @@ const Player: React.FC = () => {
                     playback_rate: tempo,
                 }),
             });
-            if (!response.ok) throw new Error((await response.json()).detail || `Status: ${response.status}`);
+            if (!response.ok) {
+                const errorData: { detail?: string } = await response.json();
+                throw new Error(errorData.detail || `Status: ${response.status}`);
+            }
             const audioBlob = await response.blob();
             const objectUrl = URL.createObjectURL(audioBlob);
             currentObjectUrlRef.current = objectUrl;
             setProcessedAudioUrl(objectUrl);
-        } catch (err: any) {
-            setError(err.message || 'Failed to process audio.');
+        } catch (err: Error | unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to process audio.');
             revokeCurrentObjectUrl();
         } finally {
             setIsProcessing(false);
@@ -152,7 +154,7 @@ const Player: React.FC = () => {
         if (audioInfo) {
             handleProcessAudio();
         }
-    }, [audioInfo]);
+    }, [audioInfo]); // handleProcessAudio is defined in component body, not a dependency
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -166,7 +168,7 @@ const Player: React.FC = () => {
             }
             handleFetchAudioInfo(sharedUrl); // Pass the shared URL here
         }
-    }, []); // Dependencies are correct, no need to add handleFetchAudioInfo if wrapped in useCallback or stable
+    }, []); // handleFetchAudioInfo is defined in component body, intentionally only run on mount
 
     const handleShare = () => {
         const params = new URLSearchParams({
@@ -312,63 +314,87 @@ const Player: React.FC = () => {
     };
 
     return (
-        <div className="p-8 max-w-4xl mx-auto bg-gradient-to-br from-gray-800/60 via-gray-900/60 to-black/60 text-white rounded-2xl shadow-2xl ring-1 ring-indigo-600 space-y-8 relative overflow-hidden backdrop-blur-lg">
+        <div className="p-8 max-w-5xl mx-auto card-glass bg-gradient-to-br from-gray-800/40 via-gray-900/40 to-black/60 text-white rounded-2xl shadow-2xl border border-indigo-500/30 space-y-8 relative overflow-hidden backdrop-blur-lg">
+            {/* Subtle decorative elements */}
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl"></div>
+            <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+            
             <div className="flex gap-2">
-                <input
-                    type="text"
-                    value={youtubeUrl}
-                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                    placeholder="Enter YouTube URL"
-                    className="flex-grow p-4 rounded-xl bg-gray-700 border border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-gray-600 transition-colors text-white placeholder-gray-400"
-                    disabled={isLoading || isProcessing}
-                />
+                <div className="relative flex-grow">
+                    <input
+                        type="text"
+                        value={youtubeUrl}
+                        onChange={(e) => setYoutubeUrl(e.target.value)}
+                        placeholder="Paste YouTube URL here..."
+                        className="w-full p-4 pl-12 rounded-xl bg-gray-900/80 border border-gray-700 focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-gray-800/80 transition-all duration-300 text-white placeholder-gray-500 shadow-inner"
+                        disabled={isLoading || isProcessing}
+                    />
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" />
+                        </svg>
+                    </div>
+                </div>
                 <button
-                    onClick={() => handleFetchAudioInfo()} // Wrap in arrow function
+                    onClick={() => handleFetchAudioInfo()}
                     disabled={isLoading || isProcessing}
-                    className="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-105 shadow-lg text-lg font-semibold"
+                    className="btn-primary whitespace-nowrap"
                 >
-                    {isLoading ? 'Loading...' : 'Load Audio'}
+                    {isLoading ? (
+                        <span className="flex items-center gap-2">
+                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Loading...
+                        </span>
+                    ) : (
+                        'Load Audio'
+                    )}
                 </button>
                 <button
                     onClick={applyAIPreset}
                     disabled={isLoading || isProcessing}
-                    className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-105 shadow-lg flex items-center gap-2"
+                    className="px-6 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-gray-900 font-medium rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-105 duration-300 shadow-lg hover:shadow-yellow-500/20 flex items-center gap-2"
                 >
-                    <BoltIcon className="w-5 h-5 text-white" />
+                    <BoltIcon className="w-5 h-5" />
                     AI Magic
                 </button>
             </div>
 
             {error && (
-                <div className="p-4 bg-red-600 bg-opacity-25 border border-red-500 rounded-lg text-red-200 text-center shadow-inner">
+                <div className="p-4 bg-red-600/20 backdrop-blur-sm border border-red-500/50 rounded-lg text-red-200 text-center shadow-inner animate-fade-in">
                     {error}
                 </div>
             )}
 
             {audioInfo && !isLoading && (
-                <div className="mt-6 p-6 bg-gradient-to-br from-gray-700 to-gray-800 rounded-xl space-y-4 relative overflow-hidden ring-1 ring-indigo-600">
+                <div className="mt-6 p-6 bg-gradient-to-br from-gray-800/70 to-gray-900/70 rounded-xl space-y-5 relative overflow-hidden border border-gray-700/80 backdrop-blur-sm shadow-xl transition-all duration-300">
                     <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                            <h3 className="text-xl font-semibold truncate hover:text-clip">{audioInfo.title}</h3>
-                            <p className="text-sm text-gray-400">
+                        <div className="flex-1 group">
+                            <h3 className="text-xl font-semibold truncate group-hover:text-clip transition-all duration-300 text-transparent bg-clip-text bg-gradient-to-r from-white to-indigo-200">{audioInfo.title}</h3>
+                            <p className="text-sm text-gray-400 mt-1 flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
                                 Duration: {Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}
                             </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                             <button
                                 onClick={handleShare}
-                                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                className="p-2 hover:bg-gray-700/80 rounded-lg transition-all duration-300 hover:text-indigo-300 group"
                                 title="Share"
                             >
-                                <ShareIcon className="w-5 h-5 text-indigo-400" />
+                                <ShareIcon className="w-5 h-5 text-gray-300 group-hover:text-indigo-300 transition-colors duration-300" />
                             </button>
                             {processedAudioUrl && (
                                 <button
                                     onClick={handleDownload}
-                                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                    className="p-2 hover:bg-gray-700/80 rounded-lg transition-all duration-300 hover:text-indigo-300 group"
                                     title="Download"
                                 >
-                                    <ArrowDownTrayIcon className="w-5 h-5 text-indigo-400" />
+                                    <ArrowDownTrayIcon className="w-5 h-5 text-gray-300 group-hover:text-indigo-300 transition-colors duration-300" />
                                 </button>
                             )}
                         </div>
@@ -381,31 +407,46 @@ const Player: React.FC = () => {
                         disabled={isProcessing}
                     />
                     {/* Apply tuning only when ready */}
-                    <div className="flex justify-end mt-2">
+                    <div className="flex justify-end mt-3">
                         <button
                             onClick={handleProcessAudio}
                             disabled={isProcessing}
-                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+                            className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:shadow-indigo-500/30 flex items-center gap-2 hover:translate-y-[-1px]"
                         >
-                            {isProcessing ? 'Processing...' : 'Apply Tuning'}
+                            {isProcessing ? (
+                                <>
+                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing...
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    Apply Tuning
+                                </>
+                            )}
                         </button>
                     </div>
 
-                    <div className="mt-4 relative group">
+                    <div className="mt-6 relative group">
                         <WaveformVisualizer
                             audioUrl={processedAudioUrl}
                             isProcessing={isProcessing}
                             onTimeUpdate={setCurrentTime}
-                            isPlaying={isPlaying}
                             onPlayPause={setIsPlaying}
                         />
                         
-                        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-gray-800 to-transparent">
+                        <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between bg-gradient-to-t from-gray-900 via-gray-900/80 to-transparent backdrop-blur-sm transition-opacity duration-300 opacity-90 group-hover:opacity-100">
                             <div className="flex items-center gap-4">
                                 <button
                                     onClick={handlePlayPause}
                                     disabled={!processedAudioUrl || isProcessing}
-                                    className="p-3 bg-indigo-600 hover:bg-indigo-700 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-800"
+                                    className="p-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900"
                                 >
                                     {isPlaying ? (
                                         <PauseIcon className="w-6 h-6" />
@@ -414,27 +455,27 @@ const Player: React.FC = () => {
                                     )}
                                 </button>
                                 
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-black/30 backdrop-blur-sm">
                                     <button
                                         onClick={() => handleTempoChange(Math.max(0.5, tempo - 0.1))}
-                                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                        className="p-1.5 hover:bg-gray-700/60 rounded-lg transition-all duration-300 hover:text-indigo-300"
                                     >
                                         <BackwardIcon className="w-4 h-4" />
                                     </button>
-                                    <span className="text-sm font-medium">{tempo.toFixed(1)}x</span>
+                                    <span className="text-sm font-medium w-10 text-center">{tempo.toFixed(1)}x</span>
                                     <button
                                         onClick={() => handleTempoChange(Math.min(2, tempo + 0.1))}
-                                        className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                        className="p-1.5 hover:bg-gray-700/60 rounded-lg transition-all duration-300 hover:text-indigo-300"
                                     >
                                         <ForwardIcon className="w-4 h-4" />
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3 px-2 py-1 rounded-lg bg-black/30 backdrop-blur-sm">
                                 <button
                                     onClick={toggleMute}
-                                    className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+                                    className="p-1.5 hover:bg-gray-700/60 rounded-lg transition-all duration-300 hover:text-indigo-300"
                                 >
                                     {volume === 0 ? (
                                         <SpeakerXMarkIcon className="w-5 h-5" />
@@ -450,8 +491,12 @@ const Player: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="text-sm text-gray-400 text-center transition-all hover:text-indigo-400">
-                        {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')} / {Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}
+                    <div className="text-sm text-gray-400 text-center transition-all hover:text-indigo-300 flex justify-center items-center gap-1.5 font-mono tracking-wider">
+                        <div className="w-16 text-right">{Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')}</div>
+                        <div className="w-16 h-[3px] bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-indigo-500 to-violet-500" style={{ width: `${(currentTime / audioInfo.duration) * 100}%` }}></div>
+                        </div>
+                        <div className="w-16 text-left">{Math.floor(audioInfo.duration / 60)}:{String(audioInfo.duration % 60).padStart(2, '0')}</div>
                     </div>
 
                     <audio
@@ -464,7 +509,7 @@ const Player: React.FC = () => {
             )}
 
             {showTooltip && (
-                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-fade-in-up">
+                <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-gray-900/80 backdrop-blur-md text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-fade-in-up border border-gray-700/50">
                     {showTooltip}
                 </div>
             )}

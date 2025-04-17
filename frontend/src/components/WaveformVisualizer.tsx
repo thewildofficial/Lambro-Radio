@@ -10,7 +10,6 @@ interface WaveformVisualizerProps {
     onTimeUpdate?: (currentTime: number) => void;
     onPlayPause?: (isPlaying: boolean) => void;
     height?: number;
-    isPlaying?: boolean;
 }
 
 const WaveformVisualizer = ({
@@ -20,7 +19,6 @@ const WaveformVisualizer = ({
     onTimeUpdate,
     onPlayPause,
     height = 128,
-    isPlaying = false
 }: WaveformVisualizerProps) => {
     const waveformRef = useRef<HTMLDivElement>(null);
     const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -49,10 +47,8 @@ const WaveformVisualizer = ({
             barWidth: 2,
             barGap: 1,
             barRadius: 3,
-            responsive: true,
             normalize: true,
             interact: true,
-            fadeIn: true,
         });
 
         wavesurferRef.current = wavesurfer;
@@ -62,11 +58,13 @@ const WaveformVisualizer = ({
             onReady?.();
         });
 
-        wavesurfer.on('audioprocess', (currentTime: number) => {
+        // Use 'timeupdate' instead of 'audioprocess' for compatibility with WaveSurfer types
+        wavesurfer.on('timeupdate', (currentTime: number) => {
             onTimeUpdate?.(currentTime);
         });
 
-        wavesurfer.on('seek', (progress: number) => {
+        // Use 'seeking' instead of 'seek' for compatibility with WaveSurfer types
+        wavesurfer.on('seeking', (progress: number) => {
             setCurrentProgress(progress);
         });
 
