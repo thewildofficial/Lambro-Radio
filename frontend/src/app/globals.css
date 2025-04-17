@@ -136,3 +136,46 @@ input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.2);
   background: rgb(199, 210, 254);
 }
+
+/* More specific styles for the FrequencySlider thumb */
+.slider-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none; /* Override default */
+  appearance: none;
+  width: 16px; /* Slightly larger thumb */
+  height: 16px;
+  background: #a78bfa; /* Violet-400 */
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #e5e7eb; /* Gray-200 border */
+  transition: background 0.2s ease-in-out, transform 0.2s ease-in-out;
+  margin-top: -6px; /* Adjust vertical position to center on the track */
+}
+
+.slider-thumb:hover::-webkit-slider-thumb {
+  background: #8b5cf6; /* Violet-500 */
+  transform: scale(1.1); /* Slightly larger on hover */
+}
+
+.slider-thumb:focus::-webkit-slider-thumb {
+   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4); /* Focus ring */
+}
+
+/* Firefox thumb styles */
+.slider-thumb::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #a78bfa; /* Violet-400 */
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #e5e7eb; /* Gray-200 border */
+  transition: background 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.slider-thumb:hover::-moz-range-thumb {
+  background: #8b5cf6; /* Violet-500 */
+  transform: scale(1.1);
+}
+
+.slider-thumb:focus::-moz-range-thumb {
+   box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.4);
+}

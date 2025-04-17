@@ -33,7 +33,28 @@
   - [X] Link copying
   - [X] About section below player
 
-## Audio Effects Suite 
+## UI/UX Enhancements & New Features
+
+- [x] **Solfeggio Frequency Support**
+  - [x] Define Solfeggio frequency values
+  - [x] Integrate Solfeggio frequencies into selection mechanism
+- [x] **Elegant Frequency Slider**
+  - [x] Design and implement a visually appealing slider
+  - [x] Ensure slider accurately reflects frequency choices (including Solfeggio)
+- [x] **About Section Elaboration**
+  - [x] Explain app functionality clearly for non-technical users
+  - [x] Describe the benefits of frequency tuning
+- [ ] **General UI/UX Overhaul**
+  - [ ] Improve overall aesthetics (beauty, elegance)
+  - [ ] Enhance user experience (simplicity, speed)
+  - [ ] Refine layout, colors, typography, spacing
+  - [ ] Ensure responsiveness
+- [ ] **Component Testing**
+  - [ ] Test each modified/added component thoroughly
+- [ ] **Error Monitoring**
+  - [ ] Actively monitor console/backend for errors during development
+
+## Audio Effects Suite
 
 - [X] **AI Magic Preset (432 Hz, slow, reverb)**
 - [ ] **Reverb Processing**

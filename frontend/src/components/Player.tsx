@@ -16,9 +16,11 @@ import { nanoid } from 'nanoid';
 import WaveformVisualizer from './WaveformVisualizer';
 import ShareDialog from './ShareDialog';
 import VolumeControl from './VolumeControl';
-import TempoControl from './TempoControl';
+// TempoControl is not used directly here anymore, but keep import if needed elsewhere or for context
+// import TempoControl from './TempoControl'; 
 import PresetManager from './PresetManager';
 import History from './History';
+import FrequencySlider from './FrequencySlider'; // Import the new slider
 
 interface AudioInfo {
     audio_stream_url: string;
@@ -26,18 +28,25 @@ interface AudioInfo {
     duration: number;
 }
 
-const TARGET_FREQUENCIES = [
-    { label: "Original (No Retune)", value: null },
+// Expanded list including Solfeggio frequencies, sorted
+const ALL_FREQUENCIES = [
+    { label: "Original", value: null },
+    { label: "396 Hz (Ut)", value: 396 }, // Solfeggio
+    { label: "417 Hz (Re)", value: 417 }, // Solfeggio
     { label: "432 Hz", value: 432 },
     { label: "440 Hz (Standard)", value: 440 },
     { label: "444 Hz", value: 444 },
-    { label: "528 Hz", value: 528 },
+    { label: "528 Hz (Mi)", value: 528 }, // Solfeggio
+    { label: "639 Hz (Fa)", value: 639 }, // Solfeggio
+    { label: "741 Hz (Sol)", value: 741 }, // Solfeggio
+    { label: "852 Hz (La)", value: 852 }, // Solfeggio
+    { label: "963 Hz (Si)", value: 963 }, // Solfeggio
 ];
 
 const Player: React.FC = () => {
     const [youtubeUrl, setYoutubeUrl] = useState<string>('');
     const [audioInfo, setAudioInfo] = useState<AudioInfo | null>(null);
-    const [selectedFrequency, setSelectedFrequency] = useState<number | null>(TARGET_FREQUENCIES[0].value);
+    const [selectedFrequency, setSelectedFrequency] = useState<number | null>(ALL_FREQUENCIES[0].value); // Use the new list
     const [processedAudioUrl, setProcessedAudioUrl] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -54,7 +63,7 @@ const Player: React.FC = () => {
     const [prevVolume, setPrevVolume] = useState(1);
     const [tempo, setTempo] = useState(1);
     const [showTooltip, setShowTooltip] = useState<string | null>(null);
-    const tooltipTimeoutRef = useRef<NodeJS.Timeout>();
+    const tooltipTimeoutRef = useRef<number | null>(null);
     const [keyboardShortcuts, setKeyboardShortcuts] = useState(false);
     const [aiPresetActive, setAiPresetActive] = useState(false);
 
@@ -68,7 +77,9 @@ const Player: React.FC = () => {
         }
     };
 
-    const handleFetchAudioInfo = async () => {
+    // Modify to accept optional URL argument
+    const handleFetchAudioInfo = async (urlToFetch?: string) => {
+        const url = urlToFetch || youtubeUrl; // Use passed URL or state
         revokeCurrentObjectUrl();
         setAudioInfo(null);
         setProcessedAudioUrl(null);
@@ -105,82 +116,43 @@ const Player: React.FC = () => {
         }
     };
 
+    // Manual audio processing function, call when user is ready to apply tuning
+    const handleProcessAudio = async () => {
+        if (!audioInfo) return;
+        setIsProcessing(true);
+        setError(null);
+        revokeCurrentObjectUrl();
+        setProcessedAudioUrl(null);
+        try {
+            const response = await fetch(`${backendUrl}/process_audio`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    audio_stream_url: audioInfo.audio_stream_url,
+                    target_frequency: selectedFrequency,
+                    ai_preset: aiPresetActive,
+                    playback_rate: tempo,
+                }),
+            });
+            if (!response.ok) throw new Error((await response.json()).detail || `Status: ${response.status}`);
+            const audioBlob = await response.blob();
+            const objectUrl = URL.createObjectURL(audioBlob);
+            currentObjectUrlRef.current = objectUrl;
+            setProcessedAudioUrl(objectUrl);
+        } catch (err: any) {
+            setError(err.message || 'Failed to process audio.');
+            revokeCurrentObjectUrl();
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    // Automatically fetch processing when info loads once
     useEffect(() => {
-        let isCancelled = false;
-
-        const fetchAndSetProcessedAudio = async () => {
-            if (!audioInfo) {
-                setProcessedAudioUrl(null);
-                revokeCurrentObjectUrl();
-                return;
-            }
-
-            setIsProcessing(true);
-            setError(null);
-            revokeCurrentObjectUrl();
-            setProcessedAudioUrl(null);
-
-            try {
-                console.log("Requesting processed audio with freq:", selectedFrequency);
-                const response = await fetch(`${backendUrl}/process_audio`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        audio_stream_url: audioInfo.audio_stream_url,
-                        target_frequency: selectedFrequency,
-                        ai_preset: aiPresetActive,
-                        playback_rate: tempo,
-                    }),
-                });
-
-                if (isCancelled) return;
-
-                if (!response.ok) {
-                    let errorDetail = `Processing error! status: ${response.status}`;
-                    try {
-                        const errorData = await response.json();
-                        errorDetail = errorData.detail || errorDetail;
-                    } catch (jsonError) {}
-                    throw new Error(errorDetail);
-                }
-
-                const audioBlob = await response.blob();
-                if (isCancelled) return;
-
-                const objectUrl = URL.createObjectURL(audioBlob);
-                if (isCancelled) {
-                    URL.revokeObjectURL(objectUrl);
-                    return;
-                }
-
-                console.log("Created Object URL:", objectUrl);
-                currentObjectUrlRef.current = objectUrl;
-                setProcessedAudioUrl(objectUrl);
-
-            } catch (err: any) {
-                if (!isCancelled) {
-                    console.error("Error processing audio:", err);
-                    setError(err.message || 'Failed to process audio.');
-                    setProcessedAudioUrl(null);
-                    revokeCurrentObjectUrl();
-                }
-            } finally {
-                if (!isCancelled) {
-                    setIsProcessing(false);
-                }
-            }
-        };
-
-        fetchAndSetProcessedAudio();
-
-        return () => {
-            isCancelled = true;
-            revokeCurrentObjectUrl();
-            console.log("Cleanup effect ran");
-        };
-    }, [audioInfo, selectedFrequency, backendUrl, aiPresetActive, tempo]);
+        if (audioInfo) {
+            handleProcessAudio();
+        }
+    }, [audioInfo]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -192,9 +164,9 @@ const Player: React.FC = () => {
             if (sharedFreq && sharedFreq !== 'original') {
                 setSelectedFrequency(Number(sharedFreq));
             }
-            handleFetchAudioInfo();
+            handleFetchAudioInfo(sharedUrl); // Pass the shared URL here
         }
-    }, []);
+    }, []); // Dependencies are correct, no need to add handleFetchAudioInfo if wrapped in useCallback or stable
 
     const handleShare = () => {
         const params = new URLSearchParams({
@@ -255,11 +227,11 @@ const Player: React.FC = () => {
     }, []);
 
     const showTemporaryTooltip = useCallback((message: string) => {
-        if (tooltipTimeoutRef.current) {
+        if (tooltipTimeoutRef.current !== null) {
             clearTimeout(tooltipTimeoutRef.current);
         }
         setShowTooltip(message);
-        tooltipTimeoutRef.current = setTimeout(() => {
+        tooltipTimeoutRef.current = window.setTimeout(() => {
             setShowTooltip(null);
         }, 2000);
     }, []);
@@ -340,7 +312,7 @@ const Player: React.FC = () => {
     };
 
     return (
-        <div className="p-8 max-w-4xl mx-auto bg-gradient-to-br from-gray-800 to-gray-900 text-white rounded-2xl shadow-2xl ring-1 ring-indigo-600 space-y-8 relative overflow-hidden">
+        <div className="p-8 max-w-4xl mx-auto bg-gradient-to-br from-gray-800/60 via-gray-900/60 to-black/60 text-white rounded-2xl shadow-2xl ring-1 ring-indigo-600 space-y-8 relative overflow-hidden backdrop-blur-lg">
             <div className="flex gap-2">
                 <input
                     type="text"
@@ -351,7 +323,7 @@ const Player: React.FC = () => {
                     disabled={isLoading || isProcessing}
                 />
                 <button
-                    onClick={handleFetchAudioInfo}
+                    onClick={() => handleFetchAudioInfo()} // Wrap in arrow function
                     disabled={isLoading || isProcessing}
                     className="px-8 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition transform hover:scale-105 shadow-lg text-lg font-semibold"
                 >
@@ -402,23 +374,21 @@ const Player: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 bg-gray-800 p-4 rounded-lg border border-gray-600 hover:border-indigo-500 transition-colors transition-shadow">
-                        <label htmlFor="frequency-select" className="text-sm font-medium whitespace-nowrap">
-                            Retune A4 to:
-                        </label>
-                        <select
-                            id="frequency-select"
-                            value={selectedFrequency === null ? 'null' : String(selectedFrequency)}
-                            onChange={(e) => setSelectedFrequency(e.target.value === 'null' ? null : Number(e.target.value))}
+                    <FrequencySlider
+                        availableFrequencies={ALL_FREQUENCIES}
+                        selectedFrequency={selectedFrequency}
+                        onChange={setSelectedFrequency}
+                        disabled={isProcessing}
+                    />
+                    {/* Apply tuning only when ready */}
+                    <div className="flex justify-end mt-2">
+                        <button
+                            onClick={handleProcessAudio}
                             disabled={isProcessing}
-                            className="flex-grow p-2 rounded-lg bg-gray-700 border border-transparent focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-70 text-white transition-all hover:border-indigo-400"
+                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
                         >
-                            {TARGET_FREQUENCIES.map(freq => (
-                                <option key={freq.label} value={freq.value === null ? 'null' : String(freq.value)}>
-                                    {freq.label}
-                                </option>
-                            ))}
-                        </select>
+                            {isProcessing ? 'Processing...' : 'Apply Tuning'}
+                        </button>
                     </div>
 
                     <div className="mt-4 relative group">
@@ -530,7 +500,7 @@ const Player: React.FC = () => {
             {audioInfo && (
               <PresetManager currentFrequency={selectedFrequency} onSelect={(freq) => setSelectedFrequency(freq)} />
             )}
-            <History onSelect={(url, freq) => { setYoutubeUrl(url); setSelectedFrequency(freq); handleFetchAudioInfo(); }} />
+            <History onSelect={(url, freq) => { setYoutubeUrl(url); setSelectedFrequency(freq); handleFetchAudioInfo(url); }} /> 
         </div>
     );
 };
