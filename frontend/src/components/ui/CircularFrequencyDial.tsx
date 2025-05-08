@@ -3,50 +3,64 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 
-const SOLFEGGIO_FREQUENCIES = [
-  174, 285, 396, 417, 528, 639, 741, 852, 963,
-];
+// This default is now overridden by the prop from PlayerSection, which includes 0 for default.
+// const SOLFEGGIO_FREQUENCIES = [
+//   174, 285, 396, 417, 528, 639, 741, 852, 963,
+// ];
+
+const DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION = 0;
+const DEFAULT_FREQUENCY_LABEL = "Default";
 
 interface CircularFrequencyDialProps {
-  initialFrequency?: number;
-  onFrequencyChange?: (frequency: number) => void;
+  initialFrequency?: number | "default"; // Can be number or "default" string
+  onFrequencyChange?: (frequency: number | "default") => void; // Callback with number or "default"
   className?: string;
   size?: number;
-  solfeggioFrequencies?: number[];
+  frequencies?: number[]; // Will receive numbers, with 0 representing "default"
 }
 
 const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
-  initialFrequency = 528,
+  initialFrequency = DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION, // Default to our internal default number
   onFrequencyChange,
   className = "",
   size = 256,
-  solfeggioFrequencies = SOLFEGGIO_FREQUENCIES,
+  frequencies = [174, 285, 396, 417, 528, 639, 741, 852, 963, DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION],
 }) => {
+  // Ensure 0 (default) is uniquely handled, typically placed first or last by convention from PlayerSection
+  const solfeggioFrequencies = React.useMemo(() => 
+    [...new Set(frequencies)].sort((a,b) => a-b) // Sort to ensure consistent indexing, 0 will be first
+  , [frequencies]);
+
   const numSteps = solfeggioFrequencies.length;
-  const anglePerStep = 360 / numSteps;
-  const START_ANGLE_OFFSET = -90; // Makes 0 degrees visually top
+  const anglePerStep = numSteps > 0 ? 360 / numSteps : 0;
+  const START_ANGLE_OFFSET = -90; // Makes 0 degrees (first item in sorted array) visually top
 
-  const findClosestFrequency = useCallback((targetFreq: number) => {
+  const findClosestFrequency = useCallback((targetFreq: number | "default") => {
+    const numericTarget = targetFreq === "default" ? DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION : targetFreq;
+    if (numSteps === 0) return DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION;
     return solfeggioFrequencies.reduce((prev, curr) => 
-      Math.abs(curr - targetFreq) < Math.abs(prev - targetFreq) ? curr : prev
+      Math.abs(curr - numericTarget) < Math.abs(prev - numericTarget) ? curr : prev
     );
-  }, [solfeggioFrequencies]);
+  }, [solfeggioFrequencies, numSteps]);
 
-  const getFrequencyIndex = useCallback((freq: number) => {
-    return solfeggioFrequencies.indexOf(findClosestFrequency(freq));
+  const getFrequencyIndex = useCallback((freq: number | "default") => {
+    const numericFreq = freq === "default" ? DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION : freq;
+    const foundIndex = solfeggioFrequencies.indexOf(findClosestFrequency(numericFreq));
+    return foundIndex === -1 ? 0 : foundIndex; // Default to first index (usually 0/"Default") if not found
   }, [solfeggioFrequencies, findClosestFrequency]);
   
   const frequencyToAngle = useCallback(
-    (freq: number) => {
+    (freq: number | "default") => {
+      if (numSteps === 0) return START_ANGLE_OFFSET;
       const index = getFrequencyIndex(freq);
-      if (index === -1) return START_ANGLE_OFFSET;
       return index * anglePerStep + START_ANGLE_OFFSET;
     },
-    [getFrequencyIndex, anglePerStep, START_ANGLE_OFFSET]
+    [getFrequencyIndex, anglePerStep, START_ANGLE_OFFSET, numSteps]
   );
 
   const angleToFrequencyAndAngle = useCallback(
     (targetAngle: number) => {
+      if (numSteps === 0) return { frequency: DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION, angle: START_ANGLE_OFFSET };
       let normalizedAngle = (targetAngle - START_ANGLE_OFFSET + 360) % 360;
       const closestStepIndex = Math.round(normalizedAngle / anglePerStep) % numSteps;
       const snappedFrequency = solfeggioFrequencies[closestStepIndex];
@@ -56,14 +70,20 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
     [anglePerStep, numSteps, solfeggioFrequencies, START_ANGLE_OFFSET]
   );
 
-  const [currentFrequency, setCurrentFrequency] = useState(findClosestFrequency(initialFrequency));
-  const [angle, setAngle] = useState(frequencyToAngle(currentFrequency));
+  // Convert initialFrequency to internal numeric representation if it's "default"
+  const numericInitialFrequency = initialFrequency === "default" 
+    ? DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION 
+    : initialFrequency;
+
+  const [currentFrequencyInternal, setCurrentFrequencyInternal] = useState(findClosestFrequency(numericInitialFrequency));
+  const [angle, setAngle] = useState(frequencyToAngle(currentFrequencyInternal));
   const [isDragging, setIsDragging] = useState(false);
   const dialRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const newFreq = findClosestFrequency(initialFrequency);
-    setCurrentFrequency(newFreq);
+    const numericInitFreq = initialFrequency === "default" ? DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION : initialFrequency;
+    const newFreq = findClosestFrequency(numericInitFreq);
+    setCurrentFrequencyInternal(newFreq);
     setAngle(frequencyToAngle(newFreq));
   }, [initialFrequency, findClosestFrequency, frequencyToAngle]);
 
@@ -76,31 +96,34 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       const deltaX = clientX - centerX;
       const deltaY = clientY - centerY;
       let rawPointerAngle = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
-      const { frequency: newFrequency, angle: newAngle } = angleToFrequencyAndAngle(rawPointerAngle);
+      const { frequency: newFrequencyInternal, angle: newAngle } = angleToFrequencyAndAngle(rawPointerAngle);
 
-      if (newFrequency !== currentFrequency) {
+      if (newFrequencyInternal !== currentFrequencyInternal) {
         setAngle(newAngle);
-        setCurrentFrequency(newFrequency);
+        setCurrentFrequencyInternal(newFrequencyInternal);
         if (onFrequencyChange) {
-          onFrequencyChange(newFrequency);
+          // Report "default" string if internal is 0, else the number
+          onFrequencyChange(newFrequencyInternal === DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION ? "default" : newFrequencyInternal);
         }
       }
     },
-    [angleToFrequencyAndAngle, onFrequencyChange, currentFrequency]
+    [angleToFrequencyAndAngle, onFrequencyChange, currentFrequencyInternal] // Ensure currentFrequencyInternal is in dependency array
   );
   
   const cycleFrequency = (direction: 'next' | 'prev') => {
-    const currentIndex = getFrequencyIndex(currentFrequency);
+    const currentIndex = getFrequencyIndex(currentFrequencyInternal);
     let nextIndex;
     if (direction === 'next') {
       nextIndex = (currentIndex + 1) % numSteps;
     } else {
       nextIndex = (currentIndex - 1 + numSteps) % numSteps;
     }
-    const newFrequency = solfeggioFrequencies[nextIndex];
-    setAngle(frequencyToAngle(newFrequency));
-    setCurrentFrequency(newFrequency);
-    if (onFrequencyChange) onFrequencyChange(newFrequency);
+    const newFrequencyInternal = solfeggioFrequencies[nextIndex];
+    setAngle(frequencyToAngle(newFrequencyInternal));
+    setCurrentFrequencyInternal(newFrequencyInternal);
+    if (onFrequencyChange) {
+      onFrequencyChange(newFrequencyInternal === DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION ? "default" : newFrequencyInternal);
+    }
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -127,7 +150,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       if (isDragging) {
         setIsDragging(false);
         document.body.style.cursor = 'default';
-        setAngle(frequencyToAngle(currentFrequency)); 
+        setAngle(frequencyToAngle(currentFrequencyInternal)); 
       }
     };
 
@@ -145,7 +168,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       document.removeEventListener("touchend", handleMouseUp);
       document.body.style.cursor = 'default';
     };
-  }, [isDragging, handleInteraction, currentFrequency, frequencyToAngle]);
+  }, [isDragging, handleInteraction, currentFrequencyInternal, frequencyToAngle]);
 
   const dialSize = size;
   const innerDialScale = 0.78;
@@ -155,6 +178,10 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   const tickWidth = Math.max(3, dialSize * 0.018);
   const tickOffset = innerDialRadius - (tickHeight * 0.5);
 
+  const displayFrequency = currentFrequencyInternal === DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION 
+    ? DEFAULT_FREQUENCY_LABEL 
+    : `${currentFrequencyInternal} Hz`;
+
   return (
     <div
       ref={dialRef}
@@ -163,10 +190,10 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
       role="slider"
-      aria-valuemin={solfeggioFrequencies[0]}
-      aria-valuemax={solfeggioFrequencies[solfeggioFrequencies.length - 1]}
-      aria-valuenow={currentFrequency}
-      aria-valuetext={`${currentFrequency} Hz`}
+      aria-valuemin={solfeggioFrequencies[0]} // Smallest actual frequency or 0
+      aria-valuemax={solfeggioFrequencies[solfeggioFrequencies.length - 1]} // Largest frequency
+      aria-valuenow={currentFrequencyInternal} // Current internal numeric value
+      aria-valuetext={displayFrequency} // User-friendly text
       aria-label="Solfeggio Frequency Dial"
       tabIndex={0}
       onKeyDown={(e) => {
@@ -183,13 +210,13 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
                      shadow-[inset_0_4px_8px_rgba(0,0,0,0.3),_inset_0_-3px_6px_rgba(255,255,255,0.08)]"
           style={{ width: `${innerDialSize}px`, height: `${innerDialSize}px` }}
         >
-          <span className="text-xs text-neutral-300/90 leading-tight">Return</span>
+          <span className="text-xs text-neutral-300/90 leading-tight">Retune</span>
           <span className="text-xs text-neutral-300/90 leading-tight mb-0.5">Frequency</span>
           <span 
             className="text-3xl font-medium text-neutral-100 mt-0.5"
             style={{ fontSize: `${Math.max(18, dialSize * 0.11)}px`}}
           >
-            {currentFrequency} Hz
+            {displayFrequency}
           </span>
         </div>
 
