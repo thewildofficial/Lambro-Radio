@@ -24,7 +24,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
 }) => {
   const numSteps = solfeggioFrequencies.length;
   const anglePerStep = 360 / numSteps;
-  const START_ANGLE_OFFSET = -90;
+  const START_ANGLE_OFFSET = -90; // Makes 0 degrees visually top
 
   const findClosestFrequency = useCallback((targetFreq: number) => {
     return solfeggioFrequencies.reduce((prev, curr) => 
@@ -105,6 +105,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
+    document.body.style.cursor = 'grabbing';
     handleInteraction(e.clientX, e.clientY);
     e.preventDefault();
   };
@@ -125,6 +126,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
     const handleMouseUp = () => {
       if (isDragging) {
         setIsDragging(false);
+        document.body.style.cursor = 'default';
         setAngle(frequencyToAngle(currentFrequency)); 
       }
     };
@@ -141,6 +143,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("touchend", handleMouseUp);
+      document.body.style.cursor = 'default';
     };
   }, [isDragging, handleInteraction, currentFrequency, frequencyToAngle]);
 
@@ -148,8 +151,9 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   const innerDialScale = 0.78;
   const innerDialSize = dialSize * innerDialScale;
   const innerDialRadius = innerDialSize / 2;
-  const tickHeight = Math.max(12, dialSize * 0.07);
-  const tickWidth = Math.max(4, dialSize * 0.023);
+  const tickHeight = Math.max(14, dialSize * 0.08);
+  const tickWidth = Math.max(3, dialSize * 0.018);
+  const tickOffset = innerDialRadius - (tickHeight * 0.5);
 
   return (
     <div
@@ -170,38 +174,44 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
         if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') cycleFrequency('prev');
       }}
     >
+      {/* Outer Ring - Deep, slightly desaturated dark grey */}
       <div className="absolute w-full h-full rounded-full bg-neutral-800 shadow-xl">
+        {/* Inner Circle - Softer gradient, more subtle 3D effect */}
         <div
           className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 rounded-full flex flex-col items-center justify-center text-center
-                     bg-gradient-to-br from-neutral-400 via-neutral-500 to-neutral-600 
-                     shadow-[inset_0_5px_10px_rgba(0,0,0,0.3),_inset_0_-5px_10px_rgba(255,255,255,0.15)]"
+                     bg-gradient-to-br from-neutral-500 via-neutral-600 to-neutral-700 
+                     shadow-[inset_0_4px_8px_rgba(0,0,0,0.3),_inset_0_-3px_6px_rgba(255,255,255,0.08)]"
           style={{ width: `${innerDialSize}px`, height: `${innerDialSize}px` }}
         >
-          <span className="text-xs text-neutral-300 leading-tight">Return</span>
-          <span className="text-xs text-neutral-300 leading-tight mb-0.5">Frequency</span>
+          <span className="text-xs text-neutral-300/90 leading-tight">Return</span>
+          <span className="text-xs text-neutral-300/90 leading-tight mb-0.5">Frequency</span>
           <span 
-            className="text-3xl font-bold text-neutral-50 mt-0.5"
+            className="text-3xl font-medium text-neutral-100 mt-0.5"
             style={{ fontSize: `${Math.max(18, dialSize * 0.11)}px`}}
           >
             {currentFrequency} Hz
           </span>
         </div>
-        <motion.div
-          className="absolute bg-white rounded-sm origin-center shadow-md"
-          style={{
-            width: `${tickWidth}px`,
-            height: `${tickHeight}px`,
-            top: '50%',
-            left: '50%',
-            x: "-50%",
-            y: "-50%",
-          }}
-          animate={{ 
-            rotate: angle,
-            translateY: -(innerDialRadius - tickHeight * 0.65)
-          }}
-          transition={{ type: "spring", stiffness: 300, damping: 25 }}
-        ></motion.div>
+
+        {/* Tick Mark Orbiting Container */}
+        <motion.div 
+          className="absolute inset-0 rounded-full"
+          style={{ transformOrigin: 'center center' }}
+          animate={{ rotate: angle }}
+          transition={{ type: "spring", stiffness: 350, damping: 30 }}
+        >
+          {/* The Actual Tick Mark - Positioned at the top edge of the container */}
+          <div
+            className="absolute bg-white rounded-[2px] shadow-sm"
+            style={{
+              width: `${tickWidth}px`,
+              height: `${tickHeight}px`,
+              top: `${(dialSize - innerDialSize)/2 + (tickHeight * 0.1)}px`,
+              left: '50%',
+              transform: 'translateX(-50%)',
+            }}
+          ></div>
+        </motion.div>
       </div>
     </div>
   );

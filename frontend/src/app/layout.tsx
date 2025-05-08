@@ -47,35 +47,11 @@ export default function RootLayout({
           </div>
         </div>
 
-        <div className="min-h-screen flex flex-col items-center justify-start px-4 py-8">
-          <header className="w-full max-w-5xl mb-8 flex justify-between items-center relative">
-            <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-violet-400">
-              <span className="relative">
-                Lambro Radio
-                <span className="absolute -top-1 left-0 w-full h-[1px] bg-gradient-to-r from-indigo-400/0 via-indigo-400/80 to-indigo-400/0"></span>
-              </span>
-            </h1>
-            <div className="flex items-center gap-4">
-              <div className="pulse-dot"></div>
-              <span className="text-xs text-gray-400 tracking-wider font-mono uppercase">Live</span>
-            </div>
-          </header>
-          
-          <main className="flex-grow w-full max-w-5xl relative z-10">
+        {/* The main content area */}
+        <div className="min-h-screen flex flex-col items-center justify-start">
+          <main className="flex-grow w-full relative z-10">
             {children}
           </main>
-          
-          <footer className="w-full max-w-5xl text-center py-6 text-sm text-gray-400 mt-8 border-t border-gray-800">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-              <div>&copy; 2025 Lambro Radio</div>
-              <div className="flex gap-4 text-xs">
-                <a href="#" className="hover:text-indigo-300 transition-colors">Privacy</a>
-                <a href="#" className="hover:text-indigo-300 transition-colors">Terms</a>
-                <a href="#" className="hover:text-indigo-300 transition-colors">About</a>
-                <a href="#" className="hover:text-indigo-300 transition-colors">Contact</a>
-              </div>
-            </div>
-          </footer>
         </div>
       </body>
     </html>
