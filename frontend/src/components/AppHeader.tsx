@@ -5,7 +5,12 @@ import React from 'react';
 const AppHeader: React.FC = () => {
   return (
     <header className="w-full py-4 px-4 md:px-8 flex items-center justify-between mb-4 md:mb-8">
-      <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 text-transparent bg-clip-text">
+      <h1 
+        className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r"
+        style={{
+          backgroundImage: `linear-gradient(to right, var(--theme-header-gradient-from, #a855f7), var(--theme-header-gradient-to, #fb923c))`
+        }}
+      >
         Lambro Radio
       </h1>
       <div className="flex items-center space-x-2">
