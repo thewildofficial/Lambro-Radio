@@ -8,5 +8,6 @@ This project utilizes the following Shadcn UI components:
 - **Button**: Used for various actions like Load & Tune, Play/Pause, Share, Download, and dialog actions.
 - **ToggleGroup**: Used for selecting frequency options.
 - **Slider**: Used for the volume control.
+- **Carousel**: Used for the frequency selector.
 
 These components have been styled to align with an Apple-inspired dark mode theme. 

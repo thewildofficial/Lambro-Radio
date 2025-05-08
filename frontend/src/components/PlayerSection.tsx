@@ -5,11 +5,18 @@ import WaveSurfer from 'wavesurfer.js';
 import { Card, CardContent } from "@/components/ui/card";
 // import { Input } from "@/components/ui/input"; // No longer needed here
 import { Button } from "@/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Slider } from "@/components/ui/slider";
 import CircularFrequencyDial from "@/components/ui/CircularFrequencyDial";
 import { Play, Pause, SkipForward, Volume2, SlidersHorizontal, RotateCcw } from 'lucide-react'; // Added RotateCcw for Default
 import { applyTheme, initializeTheme, getCurrentThemeValues } from '@/lib/theme-manager'; // Corrected path assuming components and lib are siblings under src
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi
+} from "@/components/ui/carousel"; // Added Carousel imports
 
 const SAMPLE_AUDIO_URL = 'https://www.mfiles.co.uk/mp3-downloads/gs-cd-track2.mp3'; // Sample audio
 
@@ -53,122 +60,140 @@ const getWaveSurferThemeColors = () => {
 };
 
 const PlayerSection: React.FC = () => {
-  // Default to "default" theme, which will be black as per theme-manager.js
   const [currentFrequency, setCurrentFrequency] = useState<number | "default">("default");
   const [selectedPresetValue, setSelectedPresetValue] = useState<string | undefined>(PRESET_FREQUENCIES[0].value);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
+  const [activeItemStyle, setActiveItemStyle] = useState<React.CSSProperties>({}); // For dynamic button color
   
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.7); // Initial volume 0-1
-  const [trackTitle, setTrackTitle] = useState("Loading Sample Audio..."); // Updated initial title
-  const [trackDuration, setTrackDuration] = useState("--:--"); // Updated initial duration
+  const [volume, setVolume] = useState(0.7);
+  const [trackTitle, setTrackTitle] = useState("Loading Sample Audio...");
+  const [trackDuration, setTrackDuration] = useState("--:--");
   const [currentTime, setCurrentTime] = useState("0:00");
 
+  const handleThemeChange = useCallback((newFreq: number | string) => {
+    applyTheme(newFreq.toString());
+  }, []);
+
+  const handlePresetChange = useCallback((value: string) => {
+    setSelectedPresetValue(prevSelectedPresetValue => {
+      if (value && value !== prevSelectedPresetValue) {
+        if (value === "default") {
+          setCurrentFrequency("default");
+          handleThemeChange("default");
+        } else {
+          const newFreqNum = parseInt(value);
+          setCurrentFrequency(newFreqNum);
+          handleThemeChange(newFreqNum);
+        }
+        return value;
+      }
+      return prevSelectedPresetValue;
+    });
+  }, [handleThemeChange]);
+
+  const handleDialChange = useCallback((newFrequency: number | "default") => {
+    setCurrentFrequency(newFrequency); // Update internal current frequency for the dial display
+    const freqString = newFrequency.toString();
+    const matchedPreset = PRESET_FREQUENCIES.find(p => p.value === freqString);
+    const newSelectedValue = matchedPreset ? matchedPreset.value : PRESET_FREQUENCIES[0].value;
+
+    // This will trigger a theme change IF the preset value actually changes
+    // setSelectedPresetValue will also trigger the effect for activeItemStyle
+    // handlePresetChange will ensure setCurrentFrequency and handleThemeChange are called if the preset value changes
+    if (newSelectedValue !== selectedPresetValue) {
+        handlePresetChange(newSelectedValue);
+    } else {
+        // If the dial moves but results in the same preset, ensure theme is current
+        // This can happen if the dial is between snap points but closer to the current one
+        // or if the dial explicitly sets a frequency that matches the current preset but wasn't the *exact* previous numeric value.
+        handleThemeChange(newFrequency); 
+    }
+  }, [selectedPresetValue, handlePresetChange, handleThemeChange]);
+
   useEffect(() => {
-    // Initialize theme on mount
-    initializeTheme(PRESET_FREQUENCIES[0].value); // Initialize with "default"
-    
-    // Ensure theme is applied before getting colors for WaveSurfer
-    // requestAnimationFrame can help wait for next paint after style change
+    // Initialize theme and active item style on mount
+    const initialPresetValue = PRESET_FREQUENCIES[0].value;
+    initializeTheme(initialPresetValue); 
     requestAnimationFrame(() => {
         const initialWaveTheme = getWaveSurferThemeColors();
+        if (typeof window !== 'undefined') {
+            const styles = getComputedStyle(document.documentElement);
+            const accentColor = styles.getPropertyValue('--theme-accent')?.trim();
+            const accentForegroundColor = styles.getPropertyValue('--theme-accent-foreground')?.trim();
+            setActiveItemStyle({ 
+                backgroundColor: accentColor || 'rgb(147 51 234)', 
+                color: accentForegroundColor || 'white' 
+            });
+        }
         if (waveformRef.current && !wavesurferRef.current) {
           const ws = WaveSurfer.create({
             container: waveformRef.current,
-            waveColor: initialWaveTheme.waveColor,
-            progressColor: initialWaveTheme.progressColor,
-            barWidth: 3,
-            barGap: 2,
-            barRadius: 3,
-            height: 90,
-            cursorWidth: 2,
-            cursorColor: initialWaveTheme.cursorColor,
-            dragToSeek: true,
-            normalize: true,
+            waveColor: initialWaveTheme.waveColor, progressColor: initialWaveTheme.progressColor, barWidth: 3, barGap: 2, barRadius: 3, height: 90,
+            cursorWidth: 2, cursorColor: initialWaveTheme.cursorColor, dragToSeek: true, normalize: true,
           });
           wavesurferRef.current = ws;
-
           ws.load(SAMPLE_AUDIO_URL);
-          ws.on('ready', () => {
-            setTrackTitle("Sample Audio: Greensleeves");
-            setTrackDuration(formatTime(ws.getDuration()));
-            ws.setVolume(volume);
-          });
-          ws.on('play', () => setIsPlaying(true));
-          ws.on('pause', () => setIsPlaying(false));
-          ws.on('finish', () => { setIsPlaying(false); ws.seekTo(0); });
+          ws.on('ready', () => { setTrackTitle("Sample Audio: Greensleeves"); setTrackDuration(formatTime(ws.getDuration())); ws.setVolume(volume); });
+          ws.on('play', () => setIsPlaying(true)); ws.on('pause', () => setIsPlaying(false)); ws.on('finish', () => { setIsPlaying(false); ws.seekTo(0); });
           ws.on('timeupdate', (time) => setCurrentTime(formatTime(time)));
           ws.on('error', (err) => { console.error("WaveSurfer error:", err); setTrackTitle("Error loading sample"); });
-
-          // No explicit destroy here, handle in return of outer useEffect
         }
     });
-    return () => {
-        wavesurferRef.current?.destroy();
-        wavesurferRef.current = null; // Clear ref on unmount
-    };
-  }, []); // Runs once on mount
+    return () => { wavesurferRef.current?.destroy(); wavesurferRef.current = null; };
+  }, [volume]); // volume is a dependency for ws.setVolume, but this effect is mount only. Initial volume is fine.
+               // For activeItemStyle on mount, it uses the initialized theme. Better to put style update in selectedPresetValue effect.
 
-  useEffect(() => {
-    wavesurferRef.current?.setVolume(volume);
-  }, [volume]);
+  useEffect(() => { wavesurferRef.current?.setVolume(volume); }, [volume]);
 
-  // Update WaveSurfer colors when theme changes
+  // Update WaveSurfer colors AND active carousel item style when theme changes (due to selectedPresetValue)
   useEffect(() => {
-    if (wavesurferRef.current) {
-      // Ensure theme is applied by applyTheme before getting new colors
-      requestAnimationFrame(() => {
+    // Theme is already applied by handlePresetChange -> handleThemeChange
+    if (typeof window !== 'undefined') {
+      requestAnimationFrame(() => { 
         const newWaveTheme = getWaveSurferThemeColors();
         wavesurferRef.current?.setOptions({
-          waveColor: newWaveTheme.waveColor,
-          progressColor: newWaveTheme.progressColor,
-          cursorColor: newWaveTheme.cursorColor,
+          waveColor: newWaveTheme.waveColor, progressColor: newWaveTheme.progressColor, cursorColor: newWaveTheme.cursorColor,
+        });
+        const styles = getComputedStyle(document.documentElement);
+        const accentColor = styles.getPropertyValue('--theme-accent')?.trim();
+        const accentForegroundColor = styles.getPropertyValue('--theme-accent-foreground')?.trim();
+        setActiveItemStyle({ 
+          backgroundColor: accentColor || 'rgb(147 51 234)', 
+          color: accentForegroundColor || 'white'
         });
       });
     }
-  }, [selectedPresetValue]); // Re-run when selectedPresetValue (and thus theme) changes
+  }, [selectedPresetValue]);
 
-  const handleThemeChange = (newFreq: number | string) => {
-    applyTheme(newFreq.toString());
-    // setSelectedPresetValue will trigger the WaveSurfer theme update useEffect
-  };
-
-  const handleDialChange = (newFrequency: number | "default") => {
-    setCurrentFrequency(newFrequency);
-    const freqString = newFrequency.toString();
-    const matchedPreset = PRESET_FREQUENCIES.find(p => p.value === freqString);
-    setSelectedPresetValue(matchedPreset ? matchedPreset.value : PRESET_FREQUENCIES[0].value);
-    handleThemeChange(newFrequency); 
-  };
-
-  const handlePresetChange = (value: string) => {
-    if (value) {
-      setSelectedPresetValue(value);
-      if (value === "default") {
-        setCurrentFrequency("default");
-        handleThemeChange("default");
-      } else {
-        const newFreqNum = parseInt(value);
-        setCurrentFrequency(newFreqNum);
-        handleThemeChange(newFreqNum);
+  // Effect to scroll carousel when selectedPresetValue changes
+  useEffect(() => {
+    if (carouselApi && selectedPresetValue) {
+      const selectedIndex = PRESET_FREQUENCIES.findIndex(p => p.value === selectedPresetValue);
+      if (selectedIndex !== -1 && selectedIndex !== carouselApi.selectedScrollSnap()) {
+        carouselApi.scrollTo(selectedIndex);
       }
-    } else {
-      // If value is empty (e.g., toggle group allows full deselection)
-      // Revert to default theme and state
-      setSelectedPresetValue(PRESET_FREQUENCIES[0].value);
-      setCurrentFrequency("default");
-      handleThemeChange("default");
     }
-  };
+  }, [selectedPresetValue, carouselApi]);
+
+  // Effect to handle carousel api initialization and selection changes via arrows
+  useEffect(() => {
+    if (!carouselApi) return;
+    const handleCarouselSelect = () => {
+      const currentSelectedIndex = carouselApi.selectedScrollSnap();
+      const newSelectedPreset = PRESET_FREQUENCIES[currentSelectedIndex];
+      if (newSelectedPreset && newSelectedPreset.value !== selectedPresetValue) {
+        handlePresetChange(newSelectedPreset.value); 
+      }
+    };
+    carouselApi.on("select", handleCarouselSelect);
+    return () => { carouselApi.off("select", handleCarouselSelect); };
+  }, [carouselApi, handlePresetChange, selectedPresetValue]);
 
   const handlePlayPause = () => wavesurferRef.current?.playPause();
-  
-  const handleVolumeChange = (value: number[]) => {
-    setVolume(value[0] / 100);
-  };
-
-  // Function to determine if a preset is a "default" type for icon display
+  const handleVolumeChange = (value: number[]) => { setVolume(value[0] / 100); };
   const isDefaultPreset = (presetValue: string) => presetValue === "default";
 
   return (
@@ -181,36 +206,57 @@ const PlayerSection: React.FC = () => {
 
         <div className="flex justify-center mb-6 md:mb-8">
           <CircularFrequencyDial 
-            initialFrequency={currentFrequency === "default" ? 0 : currentFrequency}
+            initialFrequency={currentFrequency} // Pass currentFrequency directly
             onFrequencyChange={handleDialChange} 
             size={240}
             frequencies={[...PRESET_FREQUENCIES.filter(f => f.value !== "default").map(f => Number(f.value)), 0]}
           />
         </div>
 
-        <ToggleGroup 
-          type="single" 
-          variant="outline" 
-          value={selectedPresetValue}
-          onValueChange={handlePresetChange}
-          className="flex justify-center flex-wrap gap-2 md:gap-3 mb-8 md:mb-10"
-        >
-          {PRESET_FREQUENCIES.map(preset => (
-            <ToggleGroupItem 
-              key={preset.value}
-              value={preset.value} 
-              aria-label={preset.label}
-              className="px-3 py-2 text-xs sm:text-sm rounded-lg 
-                         border-neutral-700 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-800
-                         data-[state=on]:bg-sky-500 data-[state=on]:text-white data-[state=on]:border-sky-400 data-[state=on]:shadow-lg"
-            >
-              {isDefaultPreset(preset.value) ? <RotateCcw className="w-4 h-4 mr-1 sm:mr-2" /> : null}
-              {preset.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-
-        {/* Waveform Display Area */}
+        {/* Carousel for Frequency Selection - Wrapper for padding and relative positioning */}
+        <div className="relative mb-8 md:mb-10 px-8 sm:px-10 md:px-12"> 
+          <Carousel 
+            setApi={setCarouselApi}
+            opts={{ align: "start", loop: false }}
+            className="w-full"
+          >
+            <CarouselContent className="-ml-1 sm:-ml-2"> 
+              {PRESET_FREQUENCIES.map((preset) => (
+                <CarouselItem key={preset.value} className="pl-1 sm:pl-2 basis-auto sm:basis-1/3 md:basis-1/4 lg:basis-1/5 flex-grow-0 flex-shrink-0">
+                  <div className="p-1">
+                    <Button
+                      variant={"outline"} 
+                      onClick={() => handlePresetChange(preset.value)}
+                      className={`w-full h-auto py-3 px-2 text-xs sm:text-sm rounded-lg transition-all duration-200 ease-out
+                                  border 
+                                  ${selectedPresetValue === preset.value 
+                                    ? 'border-transparent shadow-lg scale-105' 
+                                    : 'bg-neutral-700/50 hover:bg-neutral-600/70 border-neutral-600/80 text-neutral-200 hover:text-neutral-50'}
+                                  focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-800`}
+                      aria-label={preset.label}
+                      style={selectedPresetValue === preset.value ? activeItemStyle : {}}
+                    >
+                      <div className="flex flex-col items-center justify-center space-y-1">
+                        {isDefaultPreset(preset.value) && (
+                          <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 mb-0.5" />
+                        )}
+                        <span>{preset.label}</span>
+                      </div>
+                    </Button>
+                  </div>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            {/* Arrows positioned slightly inside the padded container */}
+            <CarouselPrevious className="absolute left-1 top-1/2 -translate-y-1/2 z-10 
+                                       bg-neutral-700/60 hover:bg-neutral-600/90 border-0 text-neutral-100 hover:text-white
+                                       disabled:opacity-30 disabled:pointer-events-none rounded-full w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center" />
+            <CarouselNext className="absolute right-1 top-1/2 -translate-y-1/2 z-10
+                                     bg-neutral-700/60 hover:bg-neutral-600/90 border-0 text-neutral-100 hover:text-white
+                                     disabled:opacity-30 disabled:pointer-events-none rounded-full w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center" />
+          </Carousel>
+        </div>
+        
         <div id="waveform" ref={waveformRef} className="h-[90px] rounded-lg mb-6 md:mb-8 bg-neutral-700/30 cursor-pointer overflow-hidden"></div>
 
         <div className="flex items-center justify-between text-neutral-200 px-1 mb-4">
@@ -220,7 +266,7 @@ const PlayerSection: React.FC = () => {
               {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
             </Button>
             <Button variant="ghost" size="icon" className="text-neutral-200 hover:text-sky-300 rounded-full hover:bg-neutral-700/60 w-11 h-11 md:w-12 md:h-12 transition-colors">
-              <SkipForward className="w-6 h-6" /> {/* TODO: Implement skip */}
+              <SkipForward className="w-6 h-6" />
             </Button>
           </div>
           <span className="text-sm font-mono w-14 text-right tabular-nums">{trackDuration}</span>
