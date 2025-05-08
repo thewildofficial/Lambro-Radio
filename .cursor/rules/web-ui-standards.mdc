@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- use https://animate-ui.com/ for animated components
+
+- Always use ShadCN components where applicable.
+
+- to add components, use command: npx shadcn@latest add <component>
+
+- Use Context7 MCP Tool to find applicable components and packages if you don't know about one. You can also use this to know about a library or a package. 
+
+- You can also use search and Fetch MCP Tools for something that Context7 can't satisfy
+.
+- If the user provides a URL for a component or package then use the fetch tool to scrape
+it and use that.
+
+- Maintain a list of used ShadCN components in ShadCN-context.md (make one if it doesn't exist). It should contain all the components used and reference this to check if you need
+to install a ShadCN component from scratch with the CLI tool or not
+
+- finally, use playwright to test your changes and verify that the UI is satisfactory and up to standards, if not, iteratively fix the UX

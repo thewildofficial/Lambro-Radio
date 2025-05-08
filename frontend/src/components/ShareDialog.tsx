@@ -1,6 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription, // Optional, if we want a subtitle
+  DialogFooter,
+  // DialogClose, // Can be used for a close button in the footer
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input"; // Assuming Input is also a Shadcn component or we use a standard one
+import { Button } from "@/components/ui/button"; // Assuming Button is also a Shadcn component
 import { ShareIcon, DocumentDuplicateIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 interface ShareDialogProps {
@@ -26,10 +37,9 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
             setCopied(true);
         } catch (err) {
             console.error('Failed to copy:', err);
+            // Optionally, show an error message to the user
         }
     };
-
-    if (!isOpen) return null;
 
     const shareData = {
         title: 'Lambro Radio - ' + title,
@@ -37,63 +47,78 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
         url: url
     };
 
-    const handleShare = async () => {
+    const handleNativeShare = async () => {
         try {
             if (navigator.share) {
                 await navigator.share(shareData);
+            } else {
+                // Fallback or message if navigator.share is not supported
+                console.log('Web Share API not supported, copy the link instead.');
             }
         } catch (err) {
             console.log('Error sharing:', err);
         }
     };
 
+    // Note: The Shadcn Dialog controls its open state via an `open` prop and `onOpenChange` callback.
+    // We are passing `isOpen` and `onClose` to align with how it might be controlled from Player.tsx.
+    // The actual <Dialog open={isOpen} onOpenChange={onClose}> would be ideal.
+
+    if (!isOpen) return null; // Still needed if Dialog isn't controlling its own visibility via props from parent
+
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-gray-800 rounded-lg max-w-md w-full p-6 relative">
-                <button
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-white"
-                >
-                    <XMarkIcon className="w-6 h-6" />
-                </button>
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="bg-apple-bg-secondary border-apple-border-primary text-apple-text-primary sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-apple-text-primary flex items-center">
+                        <ShareIcon className="w-5 h-5 mr-2 text-apple-accent-blue" />
+                        Share Track
+                    </DialogTitle>
+                    {/* <DialogDescription className="text-apple-text-secondary">
+                        Share this tuned audio with others.
+                    </DialogDescription> */} 
+                </DialogHeader>
                 
-                <h3 className="text-xl font-semibold text-white mb-4">Share this track</h3>
-                
-                <div className="space-y-4">
-                    <div className="flex items-center space-x-2 bg-gray-700 rounded-lg p-2">
-                        <input
+                <div className="space-y-4 py-4">
+                    <div className="flex items-center space-x-2">
+                        <Input
                             type="text"
                             value={url}
                             readOnly
-                            className="flex-1 bg-gray-700 bg-opacity-30 text-white text-sm outline-none p-2 rounded-lg"
+                            className="bg-apple-bg-tertiary border-apple-border-secondary text-apple-text-primary placeholder-apple-text-tertiary focus-visible:ring-apple-accent-blue"
+                            aria-label="Shareable URL"
                         />
-                        <button
+                        <Button 
+                            variant="outline_apple" 
+                            size="icon_apple" 
                             onClick={handleCopy}
-                            className="p-2 hover:bg-gray-600 rounded-lg transition-colors"
-                            title="Copy link"
+                            aria-label="Copy URL"
                         >
-                            <DocumentDuplicateIcon className="w-5 h-5 text-indigo-400" />
-                        </button>
+                            <DocumentDuplicateIcon className="h-5 w-5" />
+                        </Button>
                     </div>
+
+                    {copied && (
+                        <p className="text-sm text-apple-accent-green text-center">Link copied to clipboard!</p>
+                    )}
 
                     {typeof navigator.share === 'function' && (
-                        <button
-                            onClick={handleShare}
-                            className="w-full flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg p-3 transition-colors"
+                        <Button 
+                            variant="default_apple" 
+                            className="w-full"
+                            onClick={handleNativeShare}
                         >
-                            <ShareIcon className="w-5 h-5" />
-                            <span>Share</span>
-                        </button>
+                            <ShareIcon className="w-5 h-5 mr-2" />
+                            Share via...
+                        </Button>
                     )}
                 </div>
-
-                {copied && (
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-full text-sm">
-                        Link copied!
-                    </div>
-                )}
-            </div>
-        </div>
+                
+                {/* <DialogFooter className="sm:justify-start">
+                    <Button variant="outline_apple" onClick={onClose}>Close</Button>
+                </DialogFooter> */}
+            </DialogContent>
+        </Dialog>
     );
 };
 
