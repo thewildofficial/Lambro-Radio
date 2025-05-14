@@ -272,10 +272,10 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
 
   // Initialize WaveSurfer
   useEffect(() => {
-    if (waveformRef.current && !wavesurferRef.current) {
+        if (waveformRef.current && !wavesurferRef.current) {
       const colors = getWaveSurferThemeColors();
-      const ws = WaveSurfer.create({
-        container: waveformRef.current,
+          const ws = WaveSurfer.create({
+            container: waveformRef.current,
         waveColor: colors.waveColor,
         progressColor: colors.progressColor,
         cursorColor: colors.cursorColor,
@@ -295,7 +295,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
       });
 
       ws.on('ready', () => {
-        wavesurferRef.current = ws;
+          wavesurferRef.current = ws;
         console.log('WaveSurfer ready!');
         setTrackDuration(formatTime(ws.getDuration()));
       });
@@ -419,12 +419,12 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 <div className="mb-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <div className="text-lg font-semibold text-neutral-100 truncate max-w-full" title={trackTitle}>{trackTitle}</div>
                   <div className="text-sm text-neutral-400 tabular-nums">{trackDuration}</div>
-                </div>
+        </div>
 
                 {/* Waveform Visualization */}
                 <div className="w-full h-[90px] mb-2">
                   <div ref={waveformRef} className="w-full h-full" />
-                </div>
+        </div>
 
                 {/* Player Controls */}
                 <div className="flex items-center gap-4 mb-2">
@@ -479,7 +479,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                   setApi={setCarouselApi} 
                   className="w-full"
                 >
-                  <div className="relative px-10">
+                  <div className="relative px-2">
                     <CarouselContent className="mx-0">
                       {PRESET_FREQUENCIES.map((preset, idx) => (
                         <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
@@ -492,16 +492,16 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                           >
                             {preset.label}
                           </Button>
-                        </CarouselItem>
-                      ))}
-                    </CarouselContent>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
                     
                     <CarouselPrevious className="absolute left-1 top-1/2 -translate-y-1/2 z-10 bg-neutral-700/70 hover:bg-neutral-600/90 border-neutral-600/70 text-white rounded-full h-8 w-8 flex items-center justify-center disabled:opacity-50" />
                     <CarouselNext className="absolute right-1 top-1/2 -translate-y-1/2 z-10 bg-neutral-700/70 hover:bg-neutral-600/90 border-neutral-600/70 text-white rounded-full h-8 w-8 flex items-center justify-center disabled:opacity-50" />
                   </div>
-                </Carousel>
-              </div>
-              
+          </Carousel>
+        </div>
+        
               {/* Frequency Dial and AI Preset */}
               <div className="flex flex-col md:flex-row items-center justify-center gap-8 mt-2">
                 <div className="flex flex-col items-center">
@@ -527,8 +527,8 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 >
                   <Music2 className="w-5 h-5 mr-2" />
                   Tune Audio
-                </Button>
-              </div>
+            </Button>
+          </div>
 
               {/* Error State */}
               {processingError && (
@@ -593,7 +593,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                   <div ref={waveformRef} className="w-full h-full" />
                   {/* Dim overlay for waveform during processing */}
                   <div className="absolute inset-0 bg-black/30 rounded-md"></div>
-                </div>
+        </div>
 
                 {/* Player Controls - disabled during processing */}
                 <div className="flex items-center gap-4 mb-2 opacity-70">
@@ -606,7 +606,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                   >
                     <Play className="w-6 h-6" />
                   </Button>
-                  <Slider
+                <Slider 
                     min={0}
                     max={100}
                     value={[volume * 100]}
@@ -647,7 +647,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                   setApi={setCarouselApi} 
                   className="w-full"
                 >
-                  <div className="relative px-10">
+                  <div className="relative px-2">
                     <CarouselContent className="mx-0">
                       {PRESET_FREQUENCIES.map((preset, idx) => (
                         <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
@@ -699,8 +699,8 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 >
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Processing...
-                </Button>
-              </div>
+            </Button>
+        </div>
             </div>
           </CardContent>
         </Card>

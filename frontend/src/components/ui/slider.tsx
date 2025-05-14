@@ -13,15 +13,13 @@ function Slider({
   max = 100,
   ...props
 }: React.ComponentProps<typeof SliderPrimitive.Root>) {
-  const _values = React.useMemo(
-    () =>
-      Array.isArray(value)
-        ? value
-        : Array.isArray(defaultValue)
-          ? defaultValue
-          : [min, max],
-    [value, defaultValue, min, max]
-  )
+  // Memoize values array to prevent infinite re-renders
+  const values = React.useMemo(() => {
+    // If value is provided, use it
+    if (value !== undefined) return value;
+    // Otherwise fall back to defaultValue or a single value of min
+    return defaultValue || [min];
+  }, [value, defaultValue, min]);
 
   return (
     <SliderPrimitive.Root
@@ -37,19 +35,12 @@ function Slider({
       {...props}
     >
       <SliderPrimitive.Track
-        data-slot="slider-track"
-        className={cn(
-          "bg-muted relative grow overflow-hidden rounded-full data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5"
-        )}
+        className="relative w-full grow overflow-hidden rounded-full bg-secondary"
+        style={{ height: 'var(--slider-height, 8px)' }}
       >
-        <SliderPrimitive.Range
-          data-slot="slider-range"
-          className={cn(
-            "bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
-          )}
-        />
+        <SliderPrimitive.Range className="absolute h-full bg-primary" />
       </SliderPrimitive.Track>
-      {Array.from({ length: _values.length }, (_, index) => (
+      {values.map((_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}

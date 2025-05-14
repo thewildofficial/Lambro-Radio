@@ -219,10 +219,14 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
     
     const handleCarouselSelect = () => {
       try {
-        const currentSelectedIndex = carouselApi.selectedScrollSnap();
-        const newSelectedPreset = frequencies[currentSelectedIndex];
-        if (newSelectedPreset && newSelectedPreset !== selectedPresetValue) {
-          handlePresetChange(newSelectedPreset);
+        if (carouselApi) {
+          const currentSelectedIndex = carouselApi.selectedScrollSnap();
+          const newSelectedPreset = frequencies[currentSelectedIndex];
+          if (newSelectedPreset && newSelectedPreset !== selectedPresetValue) {
+            if (handlePresetChange) {
+              handlePresetChange(newSelectedPreset);
+            }
+          }
         }
       } catch (error) {
         console.error("Error in carousel selection:", error);
@@ -491,31 +495,33 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
         </motion.div>
 
         {/* Premium Indicator Needle with improved design */}
-        <motion.div 
-          className="absolute top-0 left-1/2"
-          style={{ 
-            transformOrigin: 'center bottom',
-            transform: 'translateX(-50%)'
+        <motion.div
+          className="absolute"
+          style={{
+            top: '50%',
+            left: '50%',
+            width: '1px',
+            height: '1px',
           }}
           animate={{ rotate: angle }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 450, 
+          transition={{
+            type: "spring",
+            stiffness: 450,
             damping: 30
           }}
         >
           <motion.div
             className="flex items-center justify-center"
-            animate={{ 
+            style={{
+              transform: `translateX(-2px) translateY(-${(size / 2) - outerRingWidth - 2}px)`,
+              width: '4px',
+              height: '16px',
+              borderRadius: '3px',
+              backgroundImage: `linear-gradient(to bottom, ${frequencyColor}FF, ${frequencyColor}AA)`,
+            }}
+            animate={{
               backgroundColor: frequencyColor,
               boxShadow: `0 0 10px ${glowColor}`,
-            }}
-            style={{
-              width: '4px',
-              height: '20px',
-              borderRadius: '4px 4px 1px 1px',
-              backgroundImage: `linear-gradient(to bottom, ${frequencyColor}FF, ${frequencyColor}AA)`,
-              boxShadow: `0 3px 6px rgba(0,0,0,0.6), 0 0 10px ${glowColor}`,
             }}
             transition={{ duration: 0.3 }}
           />

@@ -20,3 +20,5 @@ it and use that.
 to install a ShadCN component from scratch with the CLI tool or not
 
 - finally, use playwright to test your changes and verify that the UI is satisfactory and up to standards, if not, iteratively fix the UX
+
+- DO NOT START ANY SERVERS UNLESS EXPLICITLY ASKED TO. If when a server is started, it says "Port x is already in use", stop the server you just started, and use the server that's already running as this causes redundant servers to hog up memory
