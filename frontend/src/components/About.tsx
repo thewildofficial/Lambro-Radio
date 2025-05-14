@@ -57,7 +57,7 @@ const About: React.FC = () => {
 
       <CardFooter className="flex justify-center pt-4 border-t border-apple-border-primary">
         <Button 
-          variant="outline_apple" 
+          variant="outline" 
           size="sm" // Using a standard sm size, can create apple specific if needed
           onClick={() => setExpanded(!expanded)}
           className="text-apple-accent-blue hover:text-apple-accent-blue/80"

@@ -496,7 +496,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
   body {
     @apply bg-background text-foreground;
-    /* font-feature-settings: "rlig" 1, "calt" 1; */ /* Kept from original */
+    background-color: var(--theme-page-background, hsl(0, 0%, 4%)); /* Default fallback */
+    transition: background-color 0.7s ease-in-out; /* Animated transition for page background */
   }
 
   a {
@@ -562,4 +563,31 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background-clip: text;
   color: transparent;
   /* Ensure transition applies to background-image if possible, though this can be tricky for gradients */
+}
+
+/* Custom scrollbar styles */
+/* For Webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--theme-bg-secondary, hsl(0, 0%, 12%)); 
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--theme-accent, hsl(207, 90%, 54%)); 
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent-hover, hsl(207, 85%, 60%));
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--theme-accent, hsl(207, 90%, 54%)) var(--theme-bg-secondary, hsl(0, 0%, 12%));
 }

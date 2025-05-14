@@ -25,6 +25,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(0, 40%, 60%, 0.5)',
     '--theme-wave-progress': 'hsla(0, 70%, 55%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 100%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(0, 60%, 5%)',
   },
   285: { // Orange-Red
     '--theme-bg-primary': 'hsl(15, 60%, 10%)',
@@ -50,6 +51,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(15, 40%, 60%, 0.5)',
     '--theme-wave-progress': 'hsla(15, 70%, 55%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(15, 60%, 5%)',
   },
   396: { // Red-Orange
     '--theme-bg-primary': 'hsl(30, 65%, 10%)',
@@ -75,6 +77,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(30, 50%, 60%, 0.5)',
     '--theme-wave-progress': 'hsla(30, 75%, 55%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(30, 65%, 5%)',
   },
   417: { // Orange
     '--theme-bg-primary': 'hsl(39, 70%, 12%)',
@@ -100,6 +103,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(39, 55%, 65%, 0.5)',
     '--theme-wave-progress': 'hsla(39, 80%, 60%, 0.8)',
     '--theme-wave-cursor': 'hsla(39, 100%, 5%, 0.9)',
+    '--theme-page-background': 'hsl(39, 70%, 7%)',
   },
   528: { // Green (Golden-Green/Emerald)
     '--theme-bg-primary': 'hsl(120, 40%, 10%)',
@@ -125,6 +129,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(120, 30%, 55%, 0.5)',
     '--theme-wave-progress': 'hsla(120, 60%, 50%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(120, 40%, 5%)',
   },
   639: { // Pink/Rose
     '--theme-bg-primary': 'hsl(330, 50%, 12%)',
@@ -150,6 +155,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(330, 40%, 60%, 0.5)',
     '--theme-wave-progress': 'hsla(330, 65%, 60%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(330, 50%, 7%)',
   },
   741: { // Blue
     '--theme-bg-primary': 'hsl(210, 50%, 10%)',
@@ -175,6 +181,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(210, 40%, 55%, 0.5)',
     '--theme-wave-progress': 'hsla(210, 70%, 55%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(210, 50%, 5%)',
   },
   852: { // Indigo
     '--theme-bg-primary': 'hsl(255, 45%, 12%)',
@@ -200,6 +207,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(255, 35%, 60%, 0.5)',
     '--theme-wave-progress': 'hsla(255, 60%, 60%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(255, 45%, 7%)',
   },
   963: { // Violet / White-Violet
     '--theme-bg-primary': 'hsl(280, 50%, 12%)',
@@ -225,6 +233,7 @@ export const solfeggioThemes = {
     '--theme-wave-color': 'hsla(280, 40%, 65%, 0.5)',
     '--theme-wave-progress': 'hsla(280, 70%, 65%, 0.8)',
     '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-page-background': 'hsl(280, 50%, 7%)',
   },
   'default': { // Default Black/Dark theme (Apple-inspired dark mode base)
     '--theme-bg-primary': 'hsl(0, 0%, 8%)',     // Slightly off-black
@@ -248,34 +257,94 @@ export const solfeggioThemes = {
     '--theme-header-gradient-from': 'hsl(207, 80%, 50%)',
     '--theme-header-gradient-to': 'hsl(280, 70%, 60%)',
     '--theme-wave-color': 'hsla(220, 15%, 60%, 0.5)',
-    '--theme-wave-progress': 'hsla(207, 90%, 54%, 0.8)',
-    '--theme-wave-cursor': 'hsla(0, 0%, 95%, 0.9)',
+    '--theme-wave-progress': 'hsla(220, 35%, 75%, 0.8)',
+    '--theme-wave-cursor': 'hsla(0, 0%, 100%, 0.9)',
+    '--theme-page-background': 'hsl(0, 0%, 4%)',
   }
 };
 
+/**
+ * Apply a theme by frequency value
+ * @param {string} frequency - Frequency value as string, or "default"
+ * @returns {boolean} - Whether the theme was successfully applied
+ */
 export function applyTheme(frequency) {
-  if (typeof window === "undefined") return; // Ensure this only runs on the client
-
-  const themeKey = String(frequency); // Ensure frequency is a string key
-  const theme = solfeggioThemes[themeKey] || solfeggioThemes['default'];
-  const root = document.documentElement;
-
-  if (root && theme) {
-    for (const [property, value] of Object.entries(theme)) {
-      root.style.setProperty(property, value);
+  if (!frequency) return false;
+  
+  try {
+    // Only proceed if we're in a browser environment
+    if (typeof window === 'undefined' || !document || !document.documentElement) {
+      console.warn('Theme manager: window or document not available (server-side rendering)');
+      return false;
     }
+    
+    // Get the theme variables
+    const theme = solfeggioThemes[frequency] || solfeggioThemes['default'];
+    
+    // Apply theme variables to root element
+    const rootStyle = document.documentElement.style;
+    Object.entries(theme).forEach(([property, value]) => {
+      if (property === '--theme-page-background') {
+        document.body.style.setProperty(property, value);
+      } else {
+        rootStyle.setProperty(property, value);
+    }
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('Error applying theme:', error);
+    return false;
   }
 }
 
-// Initializes the theme on first load or if no specific frequency is set.
-// Call this in your main layout or a root client component.
+/**
+ * Initialize the theme system with default values
+ * @param {string} defaultFrequency - Default frequency to apply
+ */
 export function initializeTheme(defaultFrequency = 'default') {
+  // Execute in the next tick to avoid SSR issues
+  setTimeout(() => {
   applyTheme(defaultFrequency);
+  }, 0);
 }
 
-// Gets the current theme object (useful for components that might need direct color values)
+/**
+ * Get current theme values for a given frequency
+ * @param {string} frequency - Frequency or "default"
+ * @returns {Object} - Theme values for the frequency
+ */
 export function getCurrentThemeValues(frequency) {
-  if (typeof window === "undefined") return solfeggioThemes['default']; // Return default for SSR
-  const themeKey = String(frequency);
-  return solfeggioThemes[themeKey] || solfeggioThemes['default'];
+  return solfeggioThemes[frequency] || solfeggioThemes['default'];
+}
+
+/**
+ * Get computed theme colors for WaveSurfer
+ * @returns {Object} - Wave color objects
+ */
+export function getWaveSurferColors() {
+  if (typeof window === 'undefined' || !document) {
+    // Fallback for SSR
+    return {
+      waveColor: 'rgba(148, 163, 184, 0.5)',
+      progressColor: 'rgba(56, 189, 248, 0.8)',
+      cursorColor: 'rgba(34, 197, 94, 0.9)',
+    };
+  }
+  
+  try {
+    const styles = getComputedStyle(document.documentElement);
+    return {
+      waveColor: styles.getPropertyValue('--theme-wave-color').trim() || 'rgba(148, 163, 184, 0.5)',
+      progressColor: styles.getPropertyValue('--theme-wave-progress').trim() || 'rgba(56, 189, 248, 0.8)',
+      cursorColor: styles.getPropertyValue('--theme-wave-cursor').trim() || 'rgba(34, 197, 94, 0.9)',
+    };
+  } catch (error) {
+    console.error('Error getting WaveSurfer colors:', error);
+    return {
+      waveColor: 'rgba(148, 163, 184, 0.5)',
+      progressColor: 'rgba(56, 189, 248, 0.8)',
+      cursorColor: 'rgba(34, 197, 94, 0.9)',
+    };
+  }
 } 

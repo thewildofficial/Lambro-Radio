@@ -1,20 +1,64 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import AppHeader from '@/components/AppHeader';
 import PlayerSection from '@/components/PlayerSection';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Link2 } from 'lucide-react';
+import { Link2, Loader2 } from 'lucide-react';
 import { motion } from "framer-motion";
+
+interface AudioInfo {
+  audio_stream_url: string;
+  title: string;
+  duration: number;
+  thumbnail_url?: string;
+}
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = React.useState('');
+  const [audioInfo, setAudioInfo] = useState<AudioInfo | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLoadAudio = () => {
+  const handleLoadAudio = async () => {
+    if (!youtubeUrl.trim()) {
+      setError("Please enter a YouTube URL.");
+      return;
+    }
     console.log('Loading audio from:', youtubeUrl);
-    // TODO: Implement actual audio loading and processing logic
+    setIsLoading(true);
+    setError(null);
+    setAudioInfo(null);
+
+    try {
+      const response = await fetch('http://localhost:8000/get_audio_info', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ url: youtubeUrl }),
+        mode: 'cors',
+        credentials: 'omit',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: "Failed to fetch audio info. Server returned an error." }));
+        throw new Error(errorData.detail || `Server error: ${response.status}`);
+      }
+
+      const data: AudioInfo = await response.json();
+      console.log('Audio info received:', data);
+      setAudioInfo(data);
+    } catch (err: any) {
+      console.error("Error fetching audio info:", err);
+      setError(err.message || "An unknown error occurred while fetching audio info.");
+      setAudioInfo(null);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const sectionAnimationProps = (delay = 0) => ({
@@ -39,21 +83,46 @@ export default function Home() {
             className="flex-grow bg-transparent border-none focus:ring-0 focus-visible:ring-offset-0 focus-visible:ring-0 placeholder-neutral-500 text-neutral-100 text-base p-1 h-auto"
             value={youtubeUrl}
             onChange={(e) => setYoutubeUrl(e.target.value)}
+            disabled={isLoading}
           />
           <Button 
             onClick={handleLoadAudio}
             className="bg-neutral-700 hover:bg-neutral-600/90 text-neutral-50 text-sm px-4 py-2 h-auto rounded-lg shadow-md active:bg-neutral-600 transition-all duration-150 ease-out border border-neutral-600/70 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900"
+            disabled={isLoading}
           >
-            Load Audio
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              "Load Audio"
+            )}
           </Button>
         </div>
+        {error && (
+          <motion.div 
+            className="mt-3 text-red-400 bg-red-900/30 p-3 rounded-lg text-sm text-center border border-red-700/50"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {error}
+          </motion.div>
+        )}
       </motion.div>
 
       <motion.div 
         className="w-full max-w-3xl"
         {...sectionAnimationProps(0.1)}
       >
-        <PlayerSection />
+        <PlayerSection 
+          key={audioInfo?.audio_stream_url}
+          initialAudioUrl={audioInfo?.audio_stream_url}
+          initialTitle={audioInfo?.title}
+          initialDuration={audioInfo?.duration}
+          initialThumbnailUrl={audioInfo?.thumbnail_url}
+        />
+        {/* <div>PlayerSection temporarily commented out for debugging.</div> */}
       </motion.div>
       
       <div className="w-full max-w-3xl mt-10 md:mt-14 grid md:grid-cols-2 gap-6 md:gap-8 px-1 md:px-0">

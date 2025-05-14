@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+yt-dlp
+numpy
+soundfile
+pyrubberband 

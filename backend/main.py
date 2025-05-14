@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import yt_dlp
@@ -18,15 +18,20 @@ app = FastAPI(title="Lambro Radio Backend")
 
 # CORS configuration
 origins = [
-    "http://localhost:3000",  # Allow Next.js dev server
+    "http://localhost:3000",  # Common Next.js dev port
+    "http://127.0.0.1:3000",
+    "http://localhost:3002",  # Your current Next.js port
+    "http://127.0.0.1:3002",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600
 )
 
 @app.get("/")
@@ -35,8 +40,10 @@ async def read_root():
 
 @app.post("/get_audio_info")
 async def get_audio_info(payload: dict):
+    print(f"Received get_audio_info request with payload: {payload}")
     url = payload.get("url")
     if not url:
+        print("Error: URL is required but not provided")
         raise HTTPException(status_code=400, detail="URL is required")
 
     ydl_opts = {
@@ -66,11 +73,15 @@ async def get_audio_info(payload: dict):
 
             # Return info or raise error
             if audio_url:
+                # Extract thumbnail URL (use the last one, usually highest quality)
+                thumbnails = info.get('thumbnails', [])
+                thumbnail_url = thumbnails[-1]['url'] if thumbnails else None
                 return {
                     "message": "Audio info retrieved successfully",
                     "audio_stream_url": audio_url,
                     "title": info.get('title', 'Unknown Title'),
-                    "duration": info.get('duration', 0)
+                    "duration": info.get('duration', 0),
+                    "thumbnail_url": thumbnail_url
                 }
             else:
                 raise HTTPException(status_code=404, detail="Suitable audio stream not found.")
@@ -89,75 +100,104 @@ def calculate_semitones(target_hz, base_hz=440.0):
     return 12 * math.log2(target_hz / base_hz)
 
 async def process_and_stream_audio_generator(audio_url: str, target_frequency: float | None, ai_preset: bool = False):
-    temp_output_path = None
+    final_processed_temp_file_path = None  # For final audio to be streamed after all processing
     ffmpeg_process = None
-    try:
-        # Create temp file for output WAV
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_output_file:
-            temp_output_path = temp_output_file.name
 
-        print(f"Starting ffmpeg to process URL with{' AI preset' if ai_preset else ''}...")
-        ffmpeg_command = ['ffmpeg', '-i', audio_url]
+    try:
+        # 1. ffmpeg processes the input audio_url directly.
+        #    It will output raw PCM to stdout for soundfile/pyrubberband.
+        print(f"ffmpeg: Processing URL {audio_url} with{' AI preset' if ai_preset else ''} for initial conversion...")
+        
+        ffmpeg_command_initial = ['ffmpeg', '-i', audio_url]
+        
+        # Apply AI preset filters directly in this ffmpeg step if requested
         if ai_preset:
-            # Enhance reverb via chained echo filters for richer tail
-            ffmpeg_command += ['-af', 'aecho=0.8:0.88:60|120:0.4|0.3, aecho=0.6:0.7:100|200:0.3|0.2']
-        ffmpeg_command += ['-vn', '-acodec', 'pcm_s16le', '-ar', '44100', '-ac', '2', '-f', 'wav', '-']
+            # Insert AI preset filter before output format specifiers
+            ai_filters = ['-af', 'aecho=0.8:0.88:60|120:0.4|0.3,aecho=0.6:0.7:100|200:0.3|0.2']
+            ffmpeg_command_initial += ai_filters
+        
+        # Add remaining ffmpeg options for output
+        ffmpeg_command_initial += [
+            '-vn',                  # No video
+            '-acodec', 'pcm_s16le', # Output raw PCM
+            '-ar', '44100',         # Sample rate
+            '-ac', '2',             # Stereo
+            '-f', 'wav',            # Output format hint (though it's raw PCM to pipe)
+            '-'                     # Output to stdout
+        ]
 
         ffmpeg_process = await asyncio.create_subprocess_exec(
-            *ffmpeg_command,
+            *ffmpeg_command_initial,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-
-        stdout_data, stderr_data = await ffmpeg_process.communicate()
+        ffmpeg_stdout_data, ffmpeg_stderr_data = await ffmpeg_process.communicate()
 
         if ffmpeg_process.returncode != 0:
-            print(f"ffmpeg process failed with code {ffmpeg_process.returncode}")
-            print(f"ffmpeg stderr:\n{stderr_data.decode(errors='ignore')}")
-            raise HTTPException(status_code=500, detail=f"ffmpeg failed processing stream (code {ffmpeg_process.returncode})")
-        elif not stdout_data:
-             print(f"ffmpeg produced no output data.")
-             print(f"ffmpeg stderr:\n{stderr_data.decode(errors='ignore')}")
-             raise HTTPException(status_code=500, detail=f"ffmpeg produced no audio data.")
-        else:
-             print("ffmpeg process completed successfully, reading data...")
+            error_message_ffmpeg = f"ffmpeg (processing URL) failed (code {ffmpeg_process.returncode}): {ffmpeg_stderr_data.decode(errors='ignore')}"
+            print(error_message_ffmpeg)
+            raise HTTPException(status_code=500, detail=error_message_ffmpeg)
+        elif not ffmpeg_stdout_data:
+            error_message_ffmpeg_nodata = f"ffmpeg (processing URL) produced no output. Stderr: {ffmpeg_stderr_data.decode(errors='ignore')}"
+            print(error_message_ffmpeg_nodata)
+            raise HTTPException(status_code=500, detail=error_message_ffmpeg_nodata)
+        
+        print("ffmpeg: Processing of URL completed. Reading into soundfile...")
 
+        # 2. Soundfile reads from ffmpeg's stdout
         try:
-            y, sr = sf.read(io.BytesIO(stdout_data), dtype='float32')
-            print(f"Read audio from ffmpeg buffer. Sample Rate: {sr}, Shape: {y.shape}")
+            y, sr = sf.read(io.BytesIO(ffmpeg_stdout_data), dtype='float32')
+            print(f"Soundfile: Read audio from ffmpeg. Sample Rate: {sr}, Shape: {y.shape}")
         except Exception as e:
-            print(f"Error reading audio buffer from ffmpeg with soundfile: {e}")
-            print(f"ffmpeg stderr:\n{stderr_data.decode(errors='ignore')}")
+            error_message_sf_read = f"Soundfile failed to read ffmpeg output: {e}. ffmpeg stderr: {ffmpeg_stderr_data.decode(errors='ignore')}"
+            print(error_message_sf_read)
             traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Could not read audio buffer via ffmpeg: {e}")
+            raise HTTPException(status_code=500, detail=error_message_sf_read)
 
-        semitones_shift = calculate_semitones(target_frequency)
-        print(f"Calculated Semitones Shift: {semitones_shift}")
-
+        # 3. PyRubberband for pitch shifting (if target_frequency is set)
         y_shifted = y
-        if semitones_shift != 0:
-            print("Applying pitch shift...")
-            if y.dtype != np.float32:
-                y = y.astype(np.float32)
-            y_shifted = pyrb.pitch_shift(y, sr, semitones_shift)
-            print("Pitch shift applied.")
+        if target_frequency is not None: # Only apply if target_frequency is not None
+            semitones_shift = calculate_semitones(target_frequency)
+            print(f"PyRubberband: Calculated Semitones Shift: {semitones_shift}")
+            if semitones_shift != 0:
+                print("PyRubberband: Applying pitch shift...")
+                if y.dtype != np.float32: # Ensure float32 for pyrubberband
+                    y_to_shift = y.astype(np.float32)
+                else:
+                    y_to_shift = y
+                
+                if y_to_shift.ndim == 1: # Mono
+                    y_to_shift = np.stack((y_to_shift, y_to_shift), axis=-1)
 
+                y_shifted = pyrb.pitch_shift(y_to_shift, sr, semitones_shift)
+                print("PyRubberband: Pitch shift applied.")
+        else:
+            if y_shifted.ndim == 1:
+                 y_shifted = np.stack((y_shifted, y_shifted), axis=-1)
+
+
+        # 4. Write final processed audio to a new temporary WAV file for streaming
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_final_file:
+            final_processed_temp_file_path = temp_final_file.name
+        
         try:
-            sf.write(temp_output_path, y_shifted, sr, format='WAV', subtype='PCM_16')
-            print(f"Processed audio saved to temp WAV file: {temp_output_path}")
+            sf.write(final_processed_temp_file_path, y_shifted, sr, format='WAV', subtype='PCM_16')
+            print(f"Soundfile: Final processed audio saved to: {final_processed_temp_file_path}")
         except Exception as e:
-            print(f"Error writing processed audio: {e}")
+            error_message_sf_write = f"Soundfile failed to write final processed audio: {e}"
+            print(error_message_sf_write)
             traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Could not write processed audio: {e}")
+            raise HTTPException(status_code=500, detail=error_message_sf_write)
 
+        # 5. Stream the final processed temporary file
         chunk_size = 8192
-        with open(temp_output_path, 'rb') as f:
+        with open(final_processed_temp_file_path, 'rb') as f:
             while True:
                 chunk = f.read(chunk_size)
                 if not chunk:
                     break
                 yield chunk
-                await asyncio.sleep(0.001)
+                await asyncio.sleep(0.001) 
 
     except Exception as e:
         print(f"General Error during audio processing: {e}")
@@ -167,31 +207,34 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
                 ffmpeg_process.terminate()
                 await ffmpeg_process.wait()
                 print("Terminated ffmpeg process due to error.")
-            except ProcessLookupError:
-                pass
-            except Exception as term_err:
-                print(f"Error terminating ffmpeg: {term_err}")
+            except ProcessLookupError: pass
+            except Exception as term_err: print(f"Error terminating ffmpeg: {term_err}")
+        
         if not isinstance(e, HTTPException):
-             raise HTTPException(status_code=500, detail=f"Internal server error during audio processing.")
+            raise HTTPException(status_code=500, detail=f"Internal server error during audio processing: {str(e)}")
         else:
-             raise e
+            raise e 
     finally:
-        if temp_output_path and os.path.exists(temp_output_path):
+        # 6. Cleanup final temporary file
+        if final_processed_temp_file_path and os.path.exists(final_processed_temp_file_path):
             try:
-                os.remove(temp_output_path)
-                print(f"Cleaned up temp output file: {temp_output_path}")
-            except OSError as e:
-                print(f"Error removing temp output file {temp_output_path}: {e}")
+                os.remove(final_processed_temp_file_path)
+                print(f"Cleaned up final processed temp file: {final_processed_temp_file_path}")
+            except OSError as e_remove_final:
+                print(f"Error removing final processed temp file {final_processed_temp_file_path}: {e_remove_final}")
+        # Note: The downloaded_audio_temp_file_path from the previous version is no longer used here.
 
 @app.post("/process_audio")
 async def stream_processed_audio_endpoint(
     payload: dict = Body(...)
 ):
+    print(f"Received process_audio request with payload: {payload}")
     audio_stream_url = payload.get("audio_stream_url")
     target_frequency = payload.get("target_frequency")
     ai_preset = payload.get("ai_preset", False)
 
     if not audio_stream_url:
+        print("Error: audio_stream_url is required but not provided")
         raise HTTPException(status_code=400, detail="audio_stream_url is required")
 
     target_freq_float: float | None = None
