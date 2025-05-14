@@ -43,6 +43,19 @@ const PRESET_FREQUENCIES = [
   { label: "963 Hz", value: "963" },
 ];
 
+const SOLFEGGIO_TIDBITS = [
+  "Some theories link 528 Hz to cellular repair. While more research is needed, it\\'s a cornerstone of many sound healing practices.",
+  "Dr. Masaru Emoto\\'s experiments showed that water exposed to loving words or harmonious music formed beautiful crystals. Imagine what Solfeggio tones might do!",
+  "Cymatics visualizes sound: specific frequencies, like those in the Solfeggio scale, can create stunning geometric patterns in water or sand.",
+  "Feeling out of sorts? 396 Hz is often used in sound baths to help release feelings of fear and guilt, aiming for a sense of grounding.",
+  "The \\'lost\\' Solfeggio scale was rediscovered using a mathematical sequence found in the Book of Numbers. Ancient wisdom, modern curiosity!",
+  "417 Hz is sometimes called the \\'frequency of transmutation,\\' believed to help clear negative energy and facilitate positive change at a deep level.",
+  "Gregorian chants, which utilized similar ancient scales, were known for their profound spiritual and calming effects on listeners.",
+  "While individual experiences vary, many report feelings of deep relaxation and clarity after listening to Solfeggio frequencies.",
+  "Sound therapy explores how different Hz values might interact with our body\\'s energy centers, or chakras, promoting balance.",
+  "Think of it like tuning an instrument! The idea is that Solfeggio frequencies help \\'tune\\' your body and mind for optimal resonance."
+];
+
 const formatTime = (time: number) => {
   if (isNaN(time) || time === Infinity || time < 0) return "--:--"; // Added guard for invalid time
   const minutes = Math.floor(time / 60);
@@ -94,6 +107,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
 
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [displayedFact, setDisplayedFact] = useState<string>("");
 
   // Store the original URL provided via props to re-use for processing
   const [sourceAudioUrl, setSourceAudioUrl] = useState<string | undefined>(initialAudioUrl);
@@ -369,6 +383,30 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
   };
   const handleVolumeChange = (value: number[]) => { setVolume(value[0] / 100); };
   const isDefaultPreset = (presetValue: string) => presetValue === "default";
+
+  // Effect for cycling fun facts during loading
+  useEffect(() => {
+    let factInterval: NodeJS.Timeout | undefined = undefined;
+
+    if (isProcessingAudio && !processingError) {
+      // Set initial fact
+      setDisplayedFact(SOLFEGGIO_TIDBITS[Math.floor(Math.random() * SOLFEGGIO_TIDBITS.length)]);
+      
+      // Cycle facts every 7 seconds
+      factInterval = setInterval(() => {
+        setDisplayedFact(SOLFEGGIO_TIDBITS[Math.floor(Math.random() * SOLFEGGIO_TIDBITS.length)]);
+      }, 7000);
+    } else {
+      if (factInterval) {
+        clearInterval(factInterval);
+      }
+    }
+    return () => {
+      if (factInterval) {
+        clearInterval(factInterval);
+      }
+    };
+  }, [isProcessingAudio, processingError]);
 
   // Main Player UI (restored and refactored)
   if (initialAudioUrl && !isProcessingAudio) {
@@ -685,10 +723,10 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 </div>
               </div>
 
-              {/* Processing Status Banner */}
-              <div className="my-2 text-center bg-indigo-900/50 p-4 rounded-lg border border-indigo-800/50">
-                <Loader2 className="w-5 h-5 text-indigo-300 animate-spin inline-block mr-2" />
-                <span className="text-indigo-100">Processing audio with {pendingFrequency === "default" ? "default tuning" : `${pendingFrequency} Hz`}...</span>
+              {/* Processing Status Banner / Fun Fact Display */}
+              <div className="my-2 text-center bg-indigo-900/50 p-4 rounded-lg border border-indigo-800/50 min-h-[60px] flex flex-col justify-center items-center">
+                <Loader2 className="w-5 h-5 text-indigo-300 animate-spin mb-2" />
+                <span className="text-indigo-100 text-sm px-2">{displayedFact || "Tuning the vibes..."}</span>
               </div>
 
               {/* Tune Button - disabled during processing */}
