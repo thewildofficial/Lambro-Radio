@@ -1,0 +1,88 @@
+---
+description: 
+globs: *.py,test_*.py
+alwaysApply: false
+---
+SYSTEM: **SYSTEM: # FastAPI Development Best Practices**
+
+This document outlines best practices for building robust, maintainable, and performant applications with FastAPI.
+
+## 1. Project Structure & Organization
+-   **Logical Code Organization:** Structure your project comprehensibly, e.g., by feature/domain (`users`, `products`) or by layer (`routes`, `services`, `repositories`).
+-   **Separation of Concerns:** Ensure modules have clearly defined responsibilities.
+-   **Dependency Injection:** Consistently leverage FastAPI's built-in dependency injection system for resources (e.g., DB sessions, external clients) and reusable logic.
+-   **Route Organization:** Group related API endpoints using `APIRouter`, typically per feature or domain.
+-   **Judicious Middleware Use:** Implement middleware for cross-cutting concerns like logging, authentication, error handling, or CORS.
+-   **Configuration Management:** Manage settings via environment variables or configuration files (e.g., using Pydantic's `BaseSettings` for validation and typing).
+
+## 2. API Design & Documentation
+-   **Semantic HTTP Methods:** Choose the appropriate HTTP method (GET, POST, PUT, PATCH, DELETE, etc.) that reflects the action.
+-   **Precise HTTP Status Codes:** Return meaningful HTTP status codes (e.g., 200, 201, 204, 400, 404, 422, 500) to clearly communicate the request outcome.
+-   **Clear Data Models (Schemas):** Define explicit request and response structures using Pydantic models.
+-   **Automatic Data Validation:** Rely on Pydantic for automatic validation of incoming request data based on your models.
+-   **Consistent Error Handling:** Implement central exception handlers to treat errors uniformly and provide informative, standardized error responses (e.g., JSON).
+-   **OpenAPI Documentation:** Utilize FastAPI's automatic OpenAPI (Swagger UI / ReDoc) generation. Enhance it with meaningful descriptions (`summary`, `description`), tags, and examples (`examples`).
+
+## 3. Data Models (Pydantic)
+-   **Definition of Data Structures:** Use Pydantic models to define the structure of API requests, responses, and configuration settings.
+-   **Detailed Validation:** Add complex validation rules directly into Pydantic models where needed (using `validator` decorators, constraints).
+-   **Explicit Type Annotations:** Consistently use Python type hints for better readability, code completion, and static analysis.
+-   **Model Organization:** Store models in a structured way, e.g., in a dedicated `schemas` or `models` directory/module.
+-   **Effective Inheritance:** Use Pydantic model inheritance effectively to define common fields (e.g., base models, schemas for creation vs. update).
+-   **Controlled Serialization:** Manage serialization/deserialization behavior specifically via Pydantic configurations and methods (e.g., `response_model`, `.model_dump()`, `.model_validate()`).
+
+## 4. Database Interaction
+-   **ORM Usage:** Employ an asynchronous ORM like SQLAlchemy (with `asyncio` support) or alternatives (e.g., Tortoise ORM, SQLModel) for database communication.
+-   **Schema Migrations:** Manage database schema changes versionally using migration tools (e.g., Alembic for SQLAlchemy).
+-   **Connection Pooling:** Configure and utilize database connection pooling to efficiently reuse connections.
+-   **Transaction Management:** Ensure data integrity by executing related operations within database transactions.
+-   **Efficient Queries:** Write performant database queries. Avoid the N+1 problem and use indexes. Analyze and optimize slow queries.
+-   **Specific Error Handling:** Catch and handle database-specific errors (e.g., connection errors, integrity violations) appropriately.
+
+## 5. Authentication & Authorization
+-   **Robust Authentication:** Secure endpoints using established mechanisms like OAuth2 (often with JWT Bearer tokens).
+-   **Secure Password Hashing:** Never store passwords in plaintext; use strong hashing algorithms (e.g., with `passlib`).
+-   **Authorization Logic:** Implement access controls (e.g., role-based) via FastAPI dependencies to check if an authenticated user has the necessary permissions.
+-   **Token Management:** Handle the lifecycle of tokens (issuance, expiration, potentially revocation).
+-   **Standard Compliance:** Adhere to standards like OAuth2 and OpenID Connect, especially when integrating external identity providers.
+-   **Clear Error Communication:** Return the correct HTTP status codes for authentication (401 Unauthorized) and authorization (403 Forbidden) errors.
+
+## 6. Security
+-   **CORS Configuration:** Configure Cross-Origin Resource Sharing (CORS) middleware securely and restrictively (allow only necessary origins, methods, headers).
+-   **Rate Limiting:** Protect your API from abuse by implementing rate limiting (e.g., using `slowapi` or via upstream proxies/gateways).
+-   **Input Validation & Sanitization:** Use Pydantic for input validation. Perform additional sanitization where necessary (e.g., to prevent XSS).
+-   **Security Headers:** Set security-related HTTP headers (e.g., `Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`).
+-   **Avoid Information Leakage:** Ensure sensitive information (e.g., stack traces, internal configurations) does not leak into error messages sent to the client.
+-   **Security-Relevant Logging:** Log security-critical events like login attempts (successful/failed), access denials, etc.
+
+## 7. Performance
+-   **Caching Strategies:** Implement caching (e.g., in-memory with `cachetools`, `functools.lru_cache` or externally with Redis/Memcached) for expensive computations or frequently accessed data.
+-   **Asynchronous Operations:** Consistently use `async` and `await` for all I/O-bound operations (network requests, database access) to maximize concurrency.
+-   **Background Tasks:** Offload time-consuming tasks not immediately required for the response to background tasks (FastAPI's `BackgroundTasks` for simple cases, Celery or RQ for more complex scenarios).
+-   **Resource Optimization:** Optimize the use of resources like database connections (pooling), memory, and external API calls.
+-   **Profiling & Optimization:** Identify performance bottlenecks through profiling and optimize both CPU- and I/O-intensive code sections.
+-   **Performance Monitoring:** Continuously monitor key metrics like latency, throughput, and error rates using appropriate monitoring tools (e.g., Prometheus, Grafana, Datadog).
+
+## 8. Testing
+-   **Unit Tests:** Write unit tests for isolated components like business logic, utility functions, and Pydantic models.
+-   **Integration Tests:** Test the interaction between components, especially API endpoints, using FastAPI's `TestClient`.
+-   **Fixtures:** Utilize test fixtures (e.g., with `pytest`) for reusable setup and teardown logic (e.g., creating test databases, mocking services).
+-   **Mocking:** Employ mocking libraries (`unittest.mock`) to isolate external dependencies or complex parts during unit tests.
+-   **Testing Error Cases:** Ensure your tests cover not only the success path but also expected error conditions and edge cases.
+-   **Test Coverage:** Measure test coverage (`coverage.py`) as an indicator, but focus on the quality and significance of tests, not just the percentage.
+
+## 9. Deployment
+-   **Containerization:** Package your application in Docker containers for consistent environments and easy deployment.
+-   **CI/CD Pipelines:** Set up Continuous Integration (automated testing, linting) and Continuous Deployment/Delivery (automated building and rollout).
+-   **Secure Configuration:** Manage sensitive configuration data (API keys, database passwords) securely via environment variables or secret management systems.
+-   **Structured Logging:** Configure logging to be useful in production environments (e.g., structured logging in JSON format) to facilitate analysis.
+-   **Monitoring & Alerting:** Implement comprehensive monitoring of application health and performance in the production environment and set up alerts for critical issues.
+-   **Deployment Strategies:** Plan your deployments using strategies like Blue-Green or Canary releases to minimize downtime and enable rollbacks.
+
+## 10. Documentation (Code & API)
+-   **Meaningful Doc strings:** Write clear and informative doc strings for public modules, classes, and functions.
+-   **Enrich API Documentation:** Actively enhance the auto-generated OpenAPI documentation with detailed descriptions, examples, and clear structure using tags.
+-   **Ensure Up-to-dateness:** Keep documentation (both in code and API descriptions) synchronized with the code and functionalities.
+-   **Document Error Scenarios:** Clearly document possible API error responses in the OpenAPI documentation.
+-   **API Versioning:** Implement a clear strategy for versioning your API (e.g., via URL path `/v1/...` or `Accept` header) if backward-incompatible changes are likely.
+---

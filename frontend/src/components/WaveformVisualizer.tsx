@@ -5,170 +5,180 @@ import WaveSurfer from 'wavesurfer.js';
 
 interface WaveformVisualizerProps {
     audioUrl: string | null;
-    isProcessing: boolean;
+    isProcessing?: boolean;
     onReady?: () => void;
     onTimeUpdate?: (currentTime: number) => void;
     onPlayPause?: (isPlaying: boolean) => void;
     height?: number;
+    isPlaying?: boolean;
 }
 
 const WaveformVisualizer = ({
     audioUrl,
-    isProcessing,
+    isProcessing = false,
     onReady,
     onTimeUpdate,
     onPlayPause,
-    height = 128,
+    height = 90,
+    isPlaying = false
 }: WaveformVisualizerProps) => {
     const waveformRef = useRef<HTMLDivElement>(null);
     const wavesurferRef = useRef<WaveSurfer | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [currentProgress, setCurrentProgress] = useState(0);
+
+    // Refs for callback props to keep initializeWaveSurfer stable
+    const onReadyRef = useRef(onReady);
+    const onTimeUpdateRef = useRef(onTimeUpdate);
+    const onPlayPauseRef = useRef(onPlayPause);
+
+    // Update refs when callback props change
+    useEffect(() => {
+        onReadyRef.current = onReady;
+    }, [onReady]);
+
+    useEffect(() => {
+        onTimeUpdateRef.current = onTimeUpdate;
+    }, [onTimeUpdate]);
+
+    useEffect(() => {
+        onPlayPauseRef.current = onPlayPause;
+    }, [onPlayPause]);
 
     const initializeWaveSurfer = useCallback(() => {
         if (!waveformRef.current) return;
+        console.log('WaveformVisualizer: initializeWaveSurfer called');
 
         const gradient = document.createElement('canvas').getContext('2d')!;
-        const gradientHeight = 128;
+        const gradientHeight = height;
+        
         const gradient1 = gradient.createLinearGradient(0, 0, 0, gradientHeight);
-        gradient1.addColorStop(0, 'rgba(79, 70, 229, 0.8)');  // indigo-600
-        gradient1.addColorStop(1, 'rgba(99, 102, 241, 0.3)'); // indigo-500
+        gradient1.addColorStop(0, 'rgba(148, 163, 184, 0.7)');
+        gradient1.addColorStop(1, 'rgba(148, 163, 184, 0.3)');
 
         const gradient2 = gradient.createLinearGradient(0, 0, 0, gradientHeight);
-        gradient2.addColorStop(0, 'rgba(129, 140, 248, 0.8)'); // indigo-400
-        gradient2.addColorStop(1, 'rgba(165, 180, 252, 0.3)'); // indigo-300
+        gradient2.addColorStop(0, 'rgba(56, 189, 248, 0.8)');
+        gradient2.addColorStop(1, 'rgba(56, 189, 248, 0.3)');
 
         const wavesurfer = WaveSurfer.create({
             container: waveformRef.current,
             height,
             waveColor: gradient1,
             progressColor: gradient2,
-            cursorColor: '#818cf8',
+            cursorColor: 'rgba(34, 197, 94, 0.9)',
             barWidth: 2,
             barGap: 1,
             barRadius: 3,
+            backend: 'WebAudio',
             normalize: true,
             interact: true,
+            fillParent: true,
         });
 
         wavesurferRef.current = wavesurfer;
 
         wavesurfer.on('ready', () => {
+            console.log('WaveformVisualizer: Wavesurfer ready event fired');
             setIsLoading(false);
-            onReady?.();
+            onReadyRef.current?.();
         });
 
-        // Use 'timeupdate' instead of 'audioprocess' for compatibility with WaveSurfer types
-        wavesurfer.on('timeupdate', (currentTime: number) => {
-            onTimeUpdate?.(currentTime);
-        });
-
-        // Use 'seeking' instead of 'seek' for compatibility with WaveSurfer types
-        wavesurfer.on('seeking', (progress: number) => {
-            setCurrentProgress(progress);
+        wavesurfer.on('audioprocess', (currentTime: number) => {
+            onTimeUpdateRef.current?.(currentTime);
         });
 
         wavesurfer.on('play', () => {
-            onPlayPause?.(true);
+            console.log('WaveformVisualizer: WaveSurfer "play" event fired.');
+            onPlayPauseRef.current?.(true);
         });
 
         wavesurfer.on('pause', () => {
-            onPlayPause?.(false);
+            console.log('WaveformVisualizer: WaveSurfer "pause" event fired.');
+            onPlayPauseRef.current?.(false);
+        });
+
+        wavesurfer.on('error', (err: Error) => {
+            console.error('WaveformVisualizer: WaveSurfer internal error:', err);
         });
 
         return wavesurfer;
-    }, [height, onReady, onTimeUpdate, onPlayPause]);
+    }, [height]);
 
+    // Initialize WaveSurfer on component mount
     useEffect(() => {
+        console.log('WaveformVisualizer: Mount effect: Initializing WaveSurfer instance.');
         const wavesurfer = initializeWaveSurfer();
         return () => {
+            console.log('WaveformVisualizer: Unmount effect: Destroying WaveSurfer instance.');
             wavesurfer?.destroy();
+            wavesurferRef.current = null;
         };
     }, [initializeWaveSurfer]);
 
+    // Load audio when URL changes
     useEffect(() => {
-        if (!wavesurferRef.current || !audioUrl) return;
+        if (!wavesurferRef.current || !audioUrl) {
+            if (wavesurferRef.current && !audioUrl) {
+                 console.log('WaveformVisualizer: useEffect [audioUrl] - No audioUrl, but instance exists. Current state isPlaying:', wavesurferRef.current.isPlaying());
+            }
+            console.log('WaveformVisualizer: useEffect [audioUrl] - Bailing: no wavesurferRef.current or no audioUrl. audioUrl:', audioUrl);
+            return;
+        }
 
+        console.log('WaveformVisualizer: useEffect [audioUrl] triggered. Current audioUrl:', audioUrl, 'isLoading:', isLoading);
         setIsLoading(true);
+        
+        if (waveformRef.current) {
+            const rect = waveformRef.current.getBoundingClientRect();
+            console.log('WaveformVisualizer: Container dimensions before load', {
+                width: rect.width,
+                height: rect.height
+            });
+        }
+        
         wavesurferRef.current.load(audioUrl);
     }, [audioUrl]);
 
-    // Playback is managed by the HTML audio element; disable Wavesurfer playback to avoid duplicate audio
-    // useEffect(() => {
-    //     const wavesurfer = wavesurferRef.current;
-    //     if (!wavesurfer) return;
-    //     if (isPlaying) wavesurfer.play(); else wavesurfer.pause();
-    // }, [isPlaying]);
-
-    // Keyboard shortcuts
+    // Control playback state based on isPlaying prop
     useEffect(() => {
-        const handleKeyPress = (e: KeyboardEvent) => {
-            const wavesurfer = wavesurferRef.current;
-            if (!wavesurfer) return;
+        const wavesurfer = wavesurferRef.current;
+        if (!wavesurfer) {
+            console.log('WaveformVisualizer: useEffect [isPlaying] - No wavesurfer instance.');
+            return;
+        }
 
-            switch (e.key.toLowerCase()) {
-                case ' ':
-                    e.preventDefault();
-                    if (wavesurfer.isPlaying()) {
-                        wavesurfer.pause();
-                    } else {
-                        wavesurfer.play();
-                    }
-                    break;
-                case 'arrowleft':
-                    e.preventDefault();
-                    const currentTime = wavesurfer.getCurrentTime();
-                    wavesurfer.setTime(Math.max(0, currentTime - 5));
-                    break;
-                case 'arrowright':
-                    e.preventDefault();
-                    const newTime = wavesurfer.getCurrentTime() + 5;
-                    if (newTime <= wavesurfer.getDuration()) {
-                        wavesurfer.setTime(newTime);
-                    }
-                    break;
+        console.log('WaveformVisualizer: useEffect [isPlaying] triggered. Prop isPlaying:', isPlaying, 'Actual wavesurfer.isPlaying():', wavesurfer.isPlaying(), 'audioUrl:', audioUrl, 'isLoading:', isLoading);
+
+        if (isPlaying && !wavesurfer.isPlaying()) {
+            if (wavesurfer.getDuration() > 0) {
+                 console.log('WaveformVisualizer: Calling wavesurfer.play()');
+                wavesurfer.play();
+                 console.log('WaveformVisualizer: After wavesurfer.play(), wavesurfer.isPlaying():', wavesurfer.isPlaying());
+            } else {
+                console.log('WaveformVisualizer: Play called, but audio not ready (duration 0 or not loaded).');
             }
-        };
-
-        window.addEventListener('keydown', handleKeyPress);
-        return () => window.removeEventListener('keydown', handleKeyPress);
-    }, []);
+        } else if (!isPlaying && wavesurfer.isPlaying()) {
+            console.log('WaveformVisualizer: Calling wavesurfer.pause()');
+            wavesurfer.pause();
+            console.log('WaveformVisualizer: After wavesurfer.pause(), wavesurfer.isPlaying():', wavesurfer.isPlaying());
+        }
+    }, [isPlaying, audioUrl, isLoading]);
 
     return (
         <div className="relative w-full">
             <div
                 ref={waveformRef}
-                className={`transition-all duration-500 ease-in-out ${
-                    isProcessing || isLoading ? 'opacity-50 scale-98' : 'opacity-100 scale-100'
+                className={`w-full transition-opacity duration-300 ${
+                    isProcessing || isLoading ? 'opacity-50' : 'opacity-100'
                 }`}
+                style={{ minHeight: `${height}px` }}
             />
             {(isProcessing || isLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="flex flex-col items-center space-y-2">
-                        <div className="relative w-12 h-12">
-                            <div className="absolute inset-0 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                            <div className="absolute inset-1 border-4 border-indigo-400 border-t-transparent rounded-full animate-spin-reverse" />
-                        </div>
-                        <span className="text-sm text-indigo-500 font-medium animate-pulse">
-                            {isProcessing ? 'Processing Audio...' : 'Loading Waveform...'}
-                        </span>
-                    </div>
+                    <div className="h-6 w-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
                 </div>
             )}
-            
-            {/* Time markers */}
-            <div className="absolute bottom-0 left-0 right-0 flex justify-between px-4 text-xs text-gray-400">
-                <span>{formatTime(currentProgress * (wavesurferRef.current?.getDuration() || 0))}</span>
-                <span>{formatTime(wavesurferRef.current?.getDuration() || 0)}</span>
-            </div>
         </div>
     );
-};
-
-const formatTime = (seconds: number): string => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 };
 
 export default WaveformVisualizer;
