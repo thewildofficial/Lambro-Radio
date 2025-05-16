@@ -114,152 +114,123 @@ def calculate_semitones(target_hz, base_hz=440.0):
     return 12 * math.log2(target_hz / base_hz)
 
 async def process_and_stream_audio_generator(audio_url: str, target_frequency: float | None, ai_preset: bool = False):
-    final_processed_temp_file_path = None  # This will be an in-memory buffer now
+    final_processed_temp_file_path = None
     ffmpeg_process = None
 
     try:
-        print(f"ffmpeg: Processing URL {audio_url} with{' AI preset' if ai_preset else ''} for initial conversion...")
+        print(f"ffmpeg: Processing URL {audio_url} with{' AI preset' if ai_preset else ''} for initial conversion (pre-pitch shift)...")
         
-        ffmpeg_command_initial = ['ffmpeg', '-i', audio_url]
+        ffmpeg_command_parts = ['ffmpeg', '-i', audio_url]
         
-        # Apply AI preset filters directly in this ffmpeg step if requested
+        audio_filters_ffmpeg_initial = []
         if ai_preset:
-            # Insert AI preset filter before output format specifiers
-            ai_filters = ['-af', 'aecho=0.8:0.88:60|120:0.4|0.3,aecho=0.6:0.7:100|200:0.3|0.2']
-            ffmpeg_command_initial += ai_filters
+            ai_echo_filters = "aecho=0.8:0.88:60|120:0.4|0.3,aecho=0.6:0.7:100|200:0.3|0.2"
+            audio_filters_ffmpeg_initial.append(ai_echo_filters)
         
-        # Add remaining ffmpeg options for output
-        ffmpeg_command_initial += [
-            '-vn',                  # No video
-            '-acodec', 'pcm_s16le', # Output raw PCM
-            '-ar', '44100',         # Sample rate
-            '-ac', '2',             # Stereo
-            '-f', 'wav',            # Output format hint (though it's raw PCM to pipe)
-            '-'                     # Output to stdout
+        if audio_filters_ffmpeg_initial:
+            ffmpeg_command_parts.extend(['-af', ",".join(audio_filters_ffmpeg_initial)])
+        
+        ffmpeg_command_parts += [
+            '-vn',
+            '-acodec', 'pcm_s16le',
+            '-ar', '44100',
+            '-ac', '2',
+            '-f', 'wav',
+            '-'
         ]
 
-        print(f"Executing ffmpeg command: {' '.join(ffmpeg_command_initial)}") # Log the command
+        print(f"Executing ffmpeg command (initial conversion): {' '.join(ffmpeg_command_parts)}")
 
         ffmpeg_process = await asyncio.create_subprocess_exec(
-            *ffmpeg_command_initial,
+            *ffmpeg_command_parts,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         ffmpeg_stdout_data, ffmpeg_stderr_data = await ffmpeg_process.communicate()
         
         ffmpeg_stderr_str = ffmpeg_stderr_data.decode(errors='ignore').strip()
-        if ffmpeg_stderr_str: # Always log stderr if it contains anything
-            print(f"ffmpeg stderr output:\n{ffmpeg_stderr_str}")
+        if ffmpeg_stderr_str:
+            print(f"ffmpeg stderr output (initial conversion):\n{ffmpeg_stderr_str}")
 
         if ffmpeg_process.returncode != 0:
-            error_message_ffmpeg = f"ffmpeg (processing URL) failed (code {ffmpeg_process.returncode}). See stderr above."
-            # print already handled by the check above
+            error_message_ffmpeg = f"ffmpeg (initial conversion) failed (code {ffmpeg_process.returncode}). See stderr."
             raise HTTPException(status_code=500, detail=error_message_ffmpeg)
         elif not ffmpeg_stdout_data:
-            error_message_ffmpeg_nodata = f"ffmpeg (processing URL) produced no output. See stderr above."
-            # print already handled by the check above
+            error_message_ffmpeg_nodata = f"ffmpeg (initial conversion) produced no output. See stderr."
             raise HTTPException(status_code=500, detail=error_message_ffmpeg_nodata)
         
-        print("ffmpeg: Processing of URL completed. Reading into soundfile...")
+        print("ffmpeg: Initial conversion completed. Reading into soundfile...")
 
         # 2. Soundfile reads from ffmpeg's stdout
         try:
             y, sr = sf.read(io.BytesIO(ffmpeg_stdout_data), dtype='float32')
             print(f"Soundfile: Read audio from ffmpeg. Sample Rate: {sr}, Shape: {y.shape}")
         except Exception as e:
-            # ffmpeg_stderr_str should be already defined and printed from above
-            error_message_sf_read = f"Soundfile failed to read ffmpeg output: {e}. Check ffmpeg stderr logged above."
+            error_message_sf_read = f"Soundfile failed to read ffmpeg output: {e}. Check ffmpeg stderr."
             print(error_message_sf_read)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=error_message_sf_read)
 
         # 3. Pitch Shifting (if target_frequency is set) using spotify-pedalboard
-        y_processed = y # Start with the audio from ffmpeg
-        if target_frequency is not None: # Only apply if target_frequency is not None
+        y_processed = y 
+        if target_frequency is not None: 
             semitones_shift = calculate_semitones(target_frequency)
             print(f"Pedalboard: Calculated Semitones Shift: {semitones_shift}")
             if semitones_shift != 0:
                 print("Pedalboard: Applying pitch shift...")
-                
-                # Pedalboard expects float32, which we already have from sf.read
-                # Pedalboard expects (num_channels, num_samples) for stereo, or (num_samples,) for mono.
-                # soundfile reads stereo as (num_samples, num_channels).
-                
                 y_to_shift = y_processed
                 transposed_to_pedalboard = False
-
-                if y_to_shift.ndim == 2 and y_to_shift.shape[1] > 1: # Stereo (e.g., shape is (N, 2))
-                    y_to_shift = y_to_shift.T # Transpose to (2, N) for pedalboard
+                if y_to_shift.ndim == 2 and y_to_shift.shape[1] > 1: 
+                    y_to_shift = y_to_shift.T 
                     transposed_to_pedalboard = True
-                # If mono (N,), it's already in the correct shape for pedalboard
-
                 try:
-                    # Create a Pedalboard instance with the PitchShift effect
                     board = Pedalboard([PitchShift(semitones=semitones_shift)], sample_rate=sr)
-                    
-                    # Process the audio
-                    y_shifted_pb = board(y_to_shift) # y_to_shift is (channels, samples) or (samples,)
-
-                    # If we transposed for pedalboard, transpose back for soundfile
+                    y_shifted_pb = board(y_to_shift) 
                     if transposed_to_pedalboard and y_shifted_pb.ndim == 2:
-                        y_processed = y_shifted_pb.T # Transpose back to (N, 2)
+                        y_processed = y_shifted_pb.T 
                     else:
-                        y_processed = y_shifted_pb # Mono or already (N, C) if pedalboard outputs that
+                        y_processed = y_shifted_pb 
                     print("Pedalboard: Pitch shift applied.")
-
                 except Exception as e:
                     print(f"Error during spotify-pedalboard pitch shifting: {e}")
-                    print(traceback.format_exc())
-                    # Fallback or re-raise, for now, print and continue with original/partially processed
-                    # Or raise HTTPException(status_code=500, detail=f"Pedalboard processing error: {e}")
-                    # For now, we'll continue with y_processed which would be the data before pedalboard attempt
+                    traceback.print_exc()
+                    # Fallback to y_processed without pitch shift
         
-        # Ensure y_processed is stereo for sf.write if it was originally stereo or became stereo
-        # The existing ffmpeg command outputs stereo, so y should be stereo.
-        # If pedalboard outputs mono from stereo, we might need to explicitly make it stereo.
-        # However, PitchShift should preserve channel count.
-        if y_processed.ndim == 1 and y.ndim == 2 and y.shape[1] == 2 : # if original was stereo but pedalboard output mono
-            print("Warning: Pedalboard might have converted stereo to mono. Duplicating to stereo for output.")
-            y_processed = np.stack((y_processed, y_processed), axis=-1)
-        elif y_processed.ndim == 1 : # if original was mono and still mono (this is fine for stereo output)
+        # Ensure y_processed is stereo for sf.write
+        if y_processed.ndim == 1:
+             print("Ensuring stereo output for mono processed audio.")
              y_processed = np.stack((y_processed, y_processed), axis=-1)
+        elif y_processed.ndim == 2 and y_processed.shape[1] == 1 : # Mono in shape (N,1)
+             print("Ensuring stereo output for mono (N,1) processed audio.")
+             y_processed = np.concatenate((y_processed, y_processed), axis=1)
 
 
         # 4. Write final processed audio to an in-memory buffer for streaming
         print("Soundfile: Preparing in-memory buffer for final processed audio...")
         in_memory_audio_buffer = io.BytesIO()
-        
         try:
             sf.write(in_memory_audio_buffer, y_processed, sr, format='WAV', subtype='PCM_16')
-            in_memory_audio_buffer.seek(0) # Reset buffer position to the beginning for reading
+            in_memory_audio_buffer.seek(0) 
             print(f"Soundfile: Final processed audio written to in-memory buffer. Size: {in_memory_audio_buffer.getbuffer().nbytes} bytes")
         except Exception as e:
-            error_message_sf_write = f"Soundfile failed to write final processed audio to in-memory buffer: {e}"
+            error_message_sf_write = f"Soundfile failed to write final processed audio: {e}"
             print(error_message_sf_write)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=error_message_sf_write)
 
-        # 5. Stream the final processed audio from the in-memory buffer
+        # 5. Stream the final processed audio
         chunk_size = 8192
-        # No longer need to open a file; read directly from in_memory_audio_buffer
         while True:
             chunk = in_memory_audio_buffer.read(chunk_size)
             if not chunk:
                 break
             yield chunk
             await asyncio.sleep(0.001) 
-        print("Streaming from in-memory buffer completed.")
+        print("Streaming from soundfile-written buffer completed.")
 
     except Exception as e:
-        # General exception handling for the generator
         print(f"Error during audio processing and streaming generator: {e}")
         traceback.print_exc()
-        # If headers not sent, FastAPI handles raising HTTPException. 
-        # If headers sent, this might be too late for a clean HTTP error, 
-        # but logging is crucial.
-        # Ensure the error is propagated if possible, or client sees a broken stream.
-        # For now, we'll rely on FastAPI's default handling if this exception bubbles up
-        # before any `yield` has occurred, or the stream breaking if after a `yield`.
         raise # Re-raise the exception to be handled by FastAPI or calling function
     finally:
         # Clean up: ffmpeg process is handled by communicate().
