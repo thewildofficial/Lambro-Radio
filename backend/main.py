@@ -13,6 +13,7 @@ import tempfile
 import os
 import traceback
 import subprocess
+from cachetools import LRUCache
 
 app = FastAPI(title="Lambro Radio Backend")
 
@@ -34,6 +35,9 @@ app.add_middleware(
     max_age=600
 )
 
+# Cache for /get_audio_info responses
+audio_info_cache = LRUCache(maxsize=128)
+
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to Lambro Radio Backend"}
@@ -45,6 +49,13 @@ async def get_audio_info(payload: dict):
     if not url:
         print("Error: URL is required but not provided")
         raise HTTPException(status_code=400, detail="URL is required")
+
+    # Check cache first
+    if url in audio_info_cache:
+        print(f"Cache hit for URL: {url}")
+        return audio_info_cache[url]
+    
+    print(f"Cache miss for URL: {url}. Fetching from yt-dlp...")
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -76,13 +87,15 @@ async def get_audio_info(payload: dict):
                 # Extract thumbnail URL (use the last one, usually highest quality)
                 thumbnails = info.get('thumbnails', [])
                 thumbnail_url = thumbnails[-1]['url'] if thumbnails else None
-                return {
+                response_data = {
                     "message": "Audio info retrieved successfully",
                     "audio_stream_url": audio_url,
                     "title": info.get('title', 'Unknown Title'),
                     "duration": info.get('duration', 0),
                     "thumbnail_url": thumbnail_url
                 }
+                audio_info_cache[url] = response_data # Store successful response in cache
+                return response_data
             else:
                 raise HTTPException(status_code=404, detail="Suitable audio stream not found.")
 
@@ -100,12 +113,10 @@ def calculate_semitones(target_hz, base_hz=440.0):
     return 12 * math.log2(target_hz / base_hz)
 
 async def process_and_stream_audio_generator(audio_url: str, target_frequency: float | None, ai_preset: bool = False):
-    final_processed_temp_file_path = None  # For final audio to be streamed after all processing
+    final_processed_temp_file_path = None  # This will be an in-memory buffer now
     ffmpeg_process = None
 
     try:
-        # 1. ffmpeg processes the input audio_url directly.
-        #    It will output raw PCM to stdout for soundfile/pyrubberband.
         print(f"ffmpeg: Processing URL {audio_url} with{' AI preset' if ai_preset else ''} for initial conversion...")
         
         ffmpeg_command_initial = ['ffmpeg', '-i', audio_url]
@@ -126,20 +137,26 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
             '-'                     # Output to stdout
         ]
 
+        print(f"Executing ffmpeg command: {' '.join(ffmpeg_command_initial)}") # Log the command
+
         ffmpeg_process = await asyncio.create_subprocess_exec(
             *ffmpeg_command_initial,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
         ffmpeg_stdout_data, ffmpeg_stderr_data = await ffmpeg_process.communicate()
+        
+        ffmpeg_stderr_str = ffmpeg_stderr_data.decode(errors='ignore').strip()
+        if ffmpeg_stderr_str: # Always log stderr if it contains anything
+            print(f"ffmpeg stderr output:\n{ffmpeg_stderr_str}")
 
         if ffmpeg_process.returncode != 0:
-            error_message_ffmpeg = f"ffmpeg (processing URL) failed (code {ffmpeg_process.returncode}): {ffmpeg_stderr_data.decode(errors='ignore')}"
-            print(error_message_ffmpeg)
+            error_message_ffmpeg = f"ffmpeg (processing URL) failed (code {ffmpeg_process.returncode}). See stderr above."
+            # print already handled by the check above
             raise HTTPException(status_code=500, detail=error_message_ffmpeg)
         elif not ffmpeg_stdout_data:
-            error_message_ffmpeg_nodata = f"ffmpeg (processing URL) produced no output. Stderr: {ffmpeg_stderr_data.decode(errors='ignore')}"
-            print(error_message_ffmpeg_nodata)
+            error_message_ffmpeg_nodata = f"ffmpeg (processing URL) produced no output. See stderr above."
+            # print already handled by the check above
             raise HTTPException(status_code=500, detail=error_message_ffmpeg_nodata)
         
         print("ffmpeg: Processing of URL completed. Reading into soundfile...")
@@ -149,7 +166,8 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
             y, sr = sf.read(io.BytesIO(ffmpeg_stdout_data), dtype='float32')
             print(f"Soundfile: Read audio from ffmpeg. Sample Rate: {sr}, Shape: {y.shape}")
         except Exception as e:
-            error_message_sf_read = f"Soundfile failed to read ffmpeg output: {e}. ffmpeg stderr: {ffmpeg_stderr_data.decode(errors='ignore')}"
+            # ffmpeg_stderr_str should be already defined and printed from above
+            error_message_sf_read = f"Soundfile failed to read ffmpeg output: {e}. Check ffmpeg stderr logged above."
             print(error_message_sf_read)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=error_message_sf_read)
@@ -176,53 +194,50 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
                  y_shifted = np.stack((y_shifted, y_shifted), axis=-1)
 
 
-        # 4. Write final processed audio to a new temporary WAV file for streaming
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_final_file:
-            final_processed_temp_file_path = temp_final_file.name
+        # 4. Write final processed audio to an in-memory buffer for streaming
+        print("Soundfile: Preparing in-memory buffer for final processed audio...")
+        in_memory_audio_buffer = io.BytesIO()
         
         try:
-            sf.write(final_processed_temp_file_path, y_shifted, sr, format='WAV', subtype='PCM_16')
-            print(f"Soundfile: Final processed audio saved to: {final_processed_temp_file_path}")
+            sf.write(in_memory_audio_buffer, y_shifted, sr, format='WAV', subtype='PCM_16')
+            in_memory_audio_buffer.seek(0) # Reset buffer position to the beginning for reading
+            print(f"Soundfile: Final processed audio written to in-memory buffer. Size: {in_memory_audio_buffer.getbuffer().nbytes} bytes")
         except Exception as e:
-            error_message_sf_write = f"Soundfile failed to write final processed audio: {e}"
+            error_message_sf_write = f"Soundfile failed to write final processed audio to in-memory buffer: {e}"
             print(error_message_sf_write)
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=error_message_sf_write)
 
-        # 5. Stream the final processed temporary file
+        # 5. Stream the final processed audio from the in-memory buffer
         chunk_size = 8192
-        with open(final_processed_temp_file_path, 'rb') as f:
-            while True:
-                chunk = f.read(chunk_size)
-                if not chunk:
-                    break
-                yield chunk
-                await asyncio.sleep(0.001) 
+        # No longer need to open a file; read directly from in_memory_audio_buffer
+        while True:
+            chunk = in_memory_audio_buffer.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+            await asyncio.sleep(0.001) 
+        print("Streaming from in-memory buffer completed.")
 
     except Exception as e:
-        print(f"General Error during audio processing: {e}")
+        # General exception handling for the generator
+        print(f"Error during audio processing and streaming generator: {e}")
         traceback.print_exc()
-        if ffmpeg_process and ffmpeg_process.returncode is None:
-            try:
-                ffmpeg_process.terminate()
-                await ffmpeg_process.wait()
-                print("Terminated ffmpeg process due to error.")
-            except ProcessLookupError: pass
-            except Exception as term_err: print(f"Error terminating ffmpeg: {term_err}")
-        
-        if not isinstance(e, HTTPException):
-            raise HTTPException(status_code=500, detail=f"Internal server error during audio processing: {str(e)}")
-        else:
-            raise e 
+        # If headers not sent, FastAPI handles raising HTTPException. 
+        # If headers sent, this might be too late for a clean HTTP error, 
+        # but logging is crucial.
+        # Ensure the error is propagated if possible, or client sees a broken stream.
+        # For now, we'll rely on FastAPI's default handling if this exception bubbles up
+        # before any `yield` has occurred, or the stream breaking if after a `yield`.
+        raise # Re-raise the exception to be handled by FastAPI or calling function
     finally:
-        # 6. Cleanup final temporary file
-        if final_processed_temp_file_path and os.path.exists(final_processed_temp_file_path):
-            try:
-                os.remove(final_processed_temp_file_path)
-                print(f"Cleaned up final processed temp file: {final_processed_temp_file_path}")
-            except OSError as e_remove_final:
-                print(f"Error removing final processed temp file {final_processed_temp_file_path}: {e_remove_final}")
-        # Note: The downloaded_audio_temp_file_path from the previous version is no longer used here.
+        # Clean up: ffmpeg process is handled by communicate().
+        # No temporary file to delete on disk for the final audio anymore.
+        # If in_memory_audio_buffer needs explicit closing, it would be here, 
+        # but BytesIO usually managed by GC.
+        if final_processed_temp_file_path: # This var is no longer used for a path
+            pass # No disk file to clean up for final_processed_temp_file_path
+        print("process_and_stream_audio_generator finished.")
 
 @app.post("/process_audio")
 async def stream_processed_audio_endpoint(
