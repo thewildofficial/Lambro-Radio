@@ -3,6 +3,6 @@ uvicorn[standard]
 yt-dlp
 numpy
 soundfile
-pyrubberband 
 aiohttp 
-cachetools 
+cachetools
+pedalboard 

@@ -6,7 +6,7 @@ import yt_dlp
 import io
 import numpy as np
 import soundfile as sf
-import pyrubberband as pyrb
+from pedalboard import Pedalboard, PitchShift
 import math
 import asyncio
 import tempfile
@@ -14,6 +14,7 @@ import os
 import traceback
 import subprocess
 from cachetools import LRUCache
+from typing import Optional, Tuple, List, Dict, Any
 
 app = FastAPI(title="Lambro Radio Backend")
 
@@ -172,26 +173,56 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=error_message_sf_read)
 
-        # 3. PyRubberband for pitch shifting (if target_frequency is set)
-        y_shifted = y
+        # 3. Pitch Shifting (if target_frequency is set) using spotify-pedalboard
+        y_processed = y # Start with the audio from ffmpeg
         if target_frequency is not None: # Only apply if target_frequency is not None
             semitones_shift = calculate_semitones(target_frequency)
-            print(f"PyRubberband: Calculated Semitones Shift: {semitones_shift}")
+            print(f"Pedalboard: Calculated Semitones Shift: {semitones_shift}")
             if semitones_shift != 0:
-                print("PyRubberband: Applying pitch shift...")
-                if y.dtype != np.float32: # Ensure float32 for pyrubberband
-                    y_to_shift = y.astype(np.float32)
-                else:
-                    y_to_shift = y
+                print("Pedalboard: Applying pitch shift...")
                 
-                if y_to_shift.ndim == 1: # Mono
-                    y_to_shift = np.stack((y_to_shift, y_to_shift), axis=-1)
+                # Pedalboard expects float32, which we already have from sf.read
+                # Pedalboard expects (num_channels, num_samples) for stereo, or (num_samples,) for mono.
+                # soundfile reads stereo as (num_samples, num_channels).
+                
+                y_to_shift = y_processed
+                transposed_to_pedalboard = False
 
-                y_shifted = pyrb.pitch_shift(y_to_shift, sr, semitones_shift)
-                print("PyRubberband: Pitch shift applied.")
-        else:
-            if y_shifted.ndim == 1:
-                 y_shifted = np.stack((y_shifted, y_shifted), axis=-1)
+                if y_to_shift.ndim == 2 and y_to_shift.shape[1] > 1: # Stereo (e.g., shape is (N, 2))
+                    y_to_shift = y_to_shift.T # Transpose to (2, N) for pedalboard
+                    transposed_to_pedalboard = True
+                # If mono (N,), it's already in the correct shape for pedalboard
+
+                try:
+                    # Create a Pedalboard instance with the PitchShift effect
+                    board = Pedalboard([PitchShift(semitones=semitones_shift)], sample_rate=sr)
+                    
+                    # Process the audio
+                    y_shifted_pb = board(y_to_shift) # y_to_shift is (channels, samples) or (samples,)
+
+                    # If we transposed for pedalboard, transpose back for soundfile
+                    if transposed_to_pedalboard and y_shifted_pb.ndim == 2:
+                        y_processed = y_shifted_pb.T # Transpose back to (N, 2)
+                    else:
+                        y_processed = y_shifted_pb # Mono or already (N, C) if pedalboard outputs that
+                    print("Pedalboard: Pitch shift applied.")
+
+                except Exception as e:
+                    print(f"Error during spotify-pedalboard pitch shifting: {e}")
+                    print(traceback.format_exc())
+                    # Fallback or re-raise, for now, print and continue with original/partially processed
+                    # Or raise HTTPException(status_code=500, detail=f"Pedalboard processing error: {e}")
+                    # For now, we'll continue with y_processed which would be the data before pedalboard attempt
+        
+        # Ensure y_processed is stereo for sf.write if it was originally stereo or became stereo
+        # The existing ffmpeg command outputs stereo, so y should be stereo.
+        # If pedalboard outputs mono from stereo, we might need to explicitly make it stereo.
+        # However, PitchShift should preserve channel count.
+        if y_processed.ndim == 1 and y.ndim == 2 and y.shape[1] == 2 : # if original was stereo but pedalboard output mono
+            print("Warning: Pedalboard might have converted stereo to mono. Duplicating to stereo for output.")
+            y_processed = np.stack((y_processed, y_processed), axis=-1)
+        elif y_processed.ndim == 1 : # if original was mono and still mono (this is fine for stereo output)
+             y_processed = np.stack((y_processed, y_processed), axis=-1)
 
 
         # 4. Write final processed audio to an in-memory buffer for streaming
@@ -199,7 +230,7 @@ async def process_and_stream_audio_generator(audio_url: str, target_frequency: f
         in_memory_audio_buffer = io.BytesIO()
         
         try:
-            sf.write(in_memory_audio_buffer, y_shifted, sr, format='WAV', subtype='PCM_16')
+            sf.write(in_memory_audio_buffer, y_processed, sr, format='WAV', subtype='PCM_16')
             in_memory_audio_buffer.seek(0) # Reset buffer position to the beginning for reading
             print(f"Soundfile: Final processed audio written to in-memory buffer. Size: {in_memory_audio_buffer.getbuffer().nbytes} bytes")
         except Exception as e:
