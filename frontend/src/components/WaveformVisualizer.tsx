@@ -46,28 +46,22 @@ const WaveformVisualizer = ({
 
     const initializeWaveSurfer = useCallback(() => {
         if (!waveformRef.current) return;
-        console.log('WaveformVisualizer: initializeWaveSurfer called');
+        console.log('WaveformVisualizer: initializeWaveSurfer called with new sleek styling');
 
-        const gradient = document.createElement('canvas').getContext('2d')!;
-        const gradientHeight = height;
-        
-        const gradient1 = gradient.createLinearGradient(0, 0, 0, gradientHeight);
-        gradient1.addColorStop(0, 'rgba(148, 163, 184, 0.7)');
-        gradient1.addColorStop(1, 'rgba(148, 163, 184, 0.3)');
-
-        const gradient2 = gradient.createLinearGradient(0, 0, 0, gradientHeight);
-        gradient2.addColorStop(0, 'rgba(56, 189, 248, 0.8)');
-        gradient2.addColorStop(1, 'rgba(56, 189, 248, 0.3)');
+        // Sleek, Apple-like styling
+        const sleekWaveColor = 'rgba(255, 255, 255, 0.25)'; // Translucent white for unplayed bars
+        const sleekProgressColor = 'rgba(255, 255, 255, 0.9)'; // Near-opaque white for played bars
+        const sleekCursorColor = 'rgba(255, 255, 255, 0.75)'; // Distinct white for the cursor
 
         const wavesurfer = WaveSurfer.create({
             container: waveformRef.current,
             height,
-            waveColor: gradient1,
-            progressColor: gradient2,
-            cursorColor: 'rgba(34, 197, 94, 0.9)',
-            barWidth: 2,
-            barGap: 1,
-            barRadius: 3,
+            waveColor: sleekWaveColor,
+            progressColor: sleekProgressColor,
+            cursorColor: sleekCursorColor,
+            barWidth: 2,       // Thin, but visible bars
+            barGap: 2,         // Decent spacing between bars
+            barRadius: 2,      // Slight rounding for a softer look
             backend: 'WebAudio',
             normalize: true,
             interact: true,
@@ -99,7 +93,7 @@ const WaveformVisualizer = ({
         wavesurfer.on('error', (err: Error) => {
             console.error('WaveformVisualizer: WaveSurfer internal error:', err);
         });
-
+        
         return wavesurfer;
     }, [height]);
 

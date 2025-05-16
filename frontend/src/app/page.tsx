@@ -27,37 +27,61 @@ export default function Home() {
       setError("Please enter a YouTube URL.");
       return;
     }
-    console.log('Loading audio from:', youtubeUrl);
+    console.log('[page.tsx] handleLoadAudio: Attempting to load audio. URL:', youtubeUrl);
     setIsLoading(true);
     setError(null);
     setAudioInfo(null);
 
     try {
+      const requestBody = { url: youtubeUrl };
+      console.log('[page.tsx] handleLoadAudio: Fetching /get_audio_info. Request body:', JSON.stringify(requestBody));
+      
       const response = await fetch('http://localhost:8000/get_audio_info', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ url: youtubeUrl }),
+        body: JSON.stringify(requestBody),
         mode: 'cors',
         credentials: 'omit',
       });
 
+      console.log('[page.tsx] handleLoadAudio: Response received from /get_audio_info. Status:', response.status, 'Ok:', response.ok);
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: "Failed to fetch audio info. Server returned an error." }));
-        throw new Error(errorData.detail || `Server error: ${response.status}`);
+        let errorDetail = `Server error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          console.error('[page.tsx] handleLoadAudio: Error data from /get_audio_info (response not ok):', errorData);
+          errorDetail = errorData.detail || JSON.stringify(errorData);
+        } catch (jsonError) {
+          const rawErrorText = await response.text().catch(() => "Could not read raw error text for !response.ok.");
+          console.error('[page.tsx] handleLoadAudio: Failed to parse error JSON for !response.ok. Raw response text:', rawErrorText, jsonError);
+          errorDetail = rawErrorText || errorDetail;
+        }
+        throw new Error(errorDetail);
       }
 
-      const data: AudioInfo = await response.json();
-      console.log('Audio info received:', data);
-      setAudioInfo(data);
+      try {
+        const data: AudioInfo = await response.json();
+        console.log('[page.tsx] handleLoadAudio: Success! Audio info received from /get_audio_info (parsed JSON):', data);
+        setAudioInfo(data);
+      } catch (jsonParseError) {
+        console.error('[page.tsx] handleLoadAudio: Failed to parse JSON from /get_audio_info (response was ok). Error:', jsonParseError);
+        const rawText = await response.text().catch(() => "Could not retrieve raw text after JSON parse failure.");
+        console.error('[page.tsx] handleLoadAudio: Raw response text for ok response that failed JSON parse:', rawText);
+        setError(`Failed to process audio data: Malformed response. Raw text: ${rawText.substring(0, 100)}...`);
+        setAudioInfo(null);
+      }
+
     } catch (err: any) {
-      console.error("Error fetching audio info:", err);
+      console.error("[page.tsx] handleLoadAudio: Outer catch error:", err);
       setError(err.message || "An unknown error occurred while fetching audio info.");
       setAudioInfo(null);
     } finally {
       setIsLoading(false);
+      console.log("[page.tsx] handleLoadAudio: finally block. isLoading set to false.");
     }
   };
 

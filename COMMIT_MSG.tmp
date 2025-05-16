@@ -1,0 +1,27 @@
+Refactor: Fix audio info fetching and revamp waveform UI
+
+This commit addresses two main areas:
+1. Resolves a critical bug in `page.tsx` where audio metadata was not consistently fetched and passed to `PlayerSection`, preventing audio loading.
+2. Implements a new, sleeker "Apple-like" design for the waveform in `WaveformVisualizer.tsx`.
+
+**1. Fix Audio Info Fetching (`page.tsx`):**
+
+- The `handleLoadAudio` function in `page.tsx` was failing to correctly process the response from the `/get_audio_info` endpoint. Even when the backend returned a 200 OK, issues in parsing the response (or the fetch promise not completing as expected) prevented the `audioInfo` state from being updated.
+- Enhanced logging was added to trace the fetch lifecycle, identify that the backend was responding correctly.
+- Robust error handling has been implemented around `response.json()` within `handleLoadAudio`. This ensures that if the response is `200 OK` but the body is not valid JSON, this error is caught, logged (including raw response text for debugging), and appropriate UI error state is set.
+- This fix ensures that `PlayerSection` now reliably receives the `initialAudioUrl` and other necessary props, allowing the audio processing pipeline to initiate correctly.
+
+**2. Revamp Waveform UI (`WaveformVisualizer.tsx`):**
+
+- Updated `WaveSurfer.js` initialization options to achieve a cleaner, more modern aesthetic inspired by Apple's UI design principles.
+- Waveform colors are now based on a white/translucent white palette for better contrast and a premium feel on the dark-themed player:
+    - `waveColor`: `rgba(255, 255, 255, 0.25)`
+    - `progressColor`: `rgba(255, 255, 255, 0.9)`
+    - `cursorColor`: `rgba(255, 255, 255, 0.75)`
+- Bar appearance has been refined:
+    - `barWidth`: 2
+    - `barGap`: 2
+    - `barRadius`: 2
+- Removed the previous programmatic CSS gradient generation for waveform colors, simplifying the styling logic.
+
+These changes result in a more reliable audio loading experience and a visually enhanced waveform display. 
