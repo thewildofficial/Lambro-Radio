@@ -58,30 +58,48 @@ async def get_audio_info(payload: dict):
     
     print(f"Cache miss for URL: {url}. Fetching from yt-dlp...")
 
+    # See https://github.com/yt-dlp/yt-dlp#format-selection-examples for format selection
+    # We want a direct audio URL, preferring opus or aac (m4a).
+    # 'bestaudio[ext=opus]/bestaudio[ext=m4a]/bestaudio/best' should prioritize these.
+    # If yt-dlp has to extract, it will be slower, but this aims for direct links.
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'bestaudio[ext=opus]/bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
+        'quiet': True,        # Already implicitly True by not capturing stdout/stderr from ydl object
+        'no_warnings': True,  # Suppress warnings
+        'extract_flat': 'discard_in_playlist', # If it's a playlist, don't extract info for each item
+        # 'dumpjson': True, # Could be used if we only want the JSON info without simulating download
     }
     try:
+        # We are calling extract_info with download=False, so it should only fetch metadata.
+        # The format string primarily influences which URL is chosen from the available formats.
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = await asyncio.to_thread(ydl.extract_info, url, download=False)
 
-            audio_url = None
-            # Find best audio format
-            for f in info.get('formats', []):
-                if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
-                    if f.get('ext') in ['opus', 'webm', 'm4a']:
-                        audio_url = f['url']
-                        break
-            # Fallback 1
-            if not audio_url:
+            # yt-dlp with download=False and a good format selector should ideally fill 'url'
+            # at the top level of 'info' if a direct link matching the criteria is found.
+            # Otherwise, we might still need to iterate formats if 'url' is not populated at the top level.
+
+            audio_url = info.get('url') # This is often populated for single videos with good format selection
+
+            if not audio_url: # Fallback: iterate through formats if top-level URL isn't what we want
+                print("Top-level 'url' not found or not suitable, iterating formats...")
+                selected_format = None
                 for f in info.get('formats', []):
-                     if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
-                         audio_url = f['url']
-                         break
-            # Fallback 2
-            if not audio_url and info.get('acodec') != 'none' and info.get('vcodec') == 'none' and info.get('url'):
-                audio_url = info['url']
+                    # Prioritize opus, then m4a (aac), then any other audio-only format
+                    if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
+                        if f.get('ext') == 'opus':
+                            selected_format = f
+                            break
+                        elif f.get('ext') == 'm4a' and not selected_format:
+                            selected_format = f
+                        elif not selected_format: # First audio-only if opus/m4a not found
+                            selected_format = f
+                
+                if selected_format:
+                    audio_url = selected_format.get('url')
+                    print(f"Selected audio URL from formats list: {audio_url} (ext: {selected_format.get('ext')})")
+
 
             # Return info or raise error
             if audio_url:
