@@ -63,25 +63,6 @@ const formatTime = (time: number) => {
   return `${minutes}:${seconds}`;
 };
 
-// Helper to get computed CSS variables for WaveSurfer
-const getWaveSurferThemeColors = () => {
-  if (typeof window === 'undefined') {
-    // Fallback for SSR or if styles not yet available
-    const defaultTheme = getCurrentThemeValues('default') as Record<string, string>; // Cast to Record<string, string>
-    return {
-      waveColor: defaultTheme['--theme-wave-color'] || 'rgba(148, 163, 184, 0.5)',
-      progressColor: defaultTheme['--theme-wave-progress'] || 'rgba(56, 189, 248, 0.8)',
-      cursorColor: defaultTheme['--theme-wave-cursor'] || 'rgba(34, 197, 94, 0.9)',
-    };
-  }
-  const styles = getComputedStyle(document.documentElement);
-  return {
-    waveColor: styles.getPropertyValue('--theme-wave-color').trim() || 'rgba(148, 163, 184, 0.5)',
-    progressColor: styles.getPropertyValue('--theme-wave-progress').trim() || 'rgba(56, 189, 248, 0.8)',
-    cursorColor: styles.getPropertyValue('--theme-wave-cursor').trim() || 'rgba(34, 197, 94, 0.9)',
-  };
-};
-
 // Updated component to accept props
 const PlayerSection: React.FC<PlayerSectionProps> = ({
   initialAudioUrl,
