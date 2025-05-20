@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import CircularFrequencyDial from "@/components/ui/CircularFrequencyDial";
-import { Play, Pause, SkipForward, Volume2, SlidersHorizontal, RotateCcw, Loader2, AlertCircle, Music2 } from 'lucide-react';
+import { Play, Pause, SkipForward, Volume2, SlidersHorizontal, RotateCcw, Loader2, AlertCircle, Music2, Download } from 'lucide-react';
 import { motion } from "framer-motion";
 import { applyTheme, initializeTheme, getCurrentThemeValues } from '@/lib/theme-manager';
 import WaveformVisualizer from './WaveformVisualizer';
@@ -203,6 +203,25 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     // Ensure hasTunedOnce is true so the effect for re-tunes can run.
     if (!hasTunedOnce) setHasTunedOnce(true); 
   };
+
+  const handleDownload = useCallback(() => {
+    if (!processedAudioUrl || !trackTitle) {
+        console.warn("Download attempted but no processed audio URL or title available.");
+        return;
+    }
+
+    // Sanitize trackTitle to be filesystem-friendly
+    const fileNameBase = trackTitle.replace(/[^a-z0-9_\\-\\s]/gi, '_').replace(/\\s+/g, '_');
+    const frequencyLabel = currentFrequency === "default" ? "original" : `${currentFrequency}Hz`;
+    const fileName = `${fileNameBase}_${frequencyLabel}.mp3`;
+
+    const a = document.createElement('a');
+    a.href = processedAudioUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }, [processedAudioUrl, trackTitle, currentFrequency]);
 
   const handleThemeChange = useCallback((newFreq: number | string) => {
     applyTheme(newFreq.toString());
@@ -552,6 +571,18 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 </Button>
               </div>
 
+              {/* Download Button */}
+              <div className="flex justify-center mt-3">
+                <Button
+                  onClick={handleDownload}
+                  disabled={!processedAudioUrl || isProcessingAudio}
+                  className="px-8 py-3 font-medium text-base bg-green-600 hover:bg-green-500 text-white shadow-lg rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-5 h-5 mr-2" />
+                  Download Audio
+                </Button>
+              </div>
+
               {/* Error State */}
               {processingError && (
                 <div className="mt-3 text-red-400 bg-red-900/30 p-3 rounded-lg text-sm text-center border border-red-700/50">
@@ -728,6 +759,17 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                   Processing...
                 </Button>
               </div>
+
+              {/* Download Button - Disabled during processing */}
+              <div className="flex justify-center mt-3">
+                  <Button
+                    disabled={true}
+                    className="px-8 py-3 font-medium text-base bg-green-600/60 text-white/70 shadow-lg rounded-lg transition-all duration-300"
+                  >
+                    <Download className="w-5 h-5 mr-2" />
+                    Download Audio
+                  </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -897,6 +939,17 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                   <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                   Processing...
                 </Button>
+              </div>
+
+              {/* Download Button - Disabled during processing */}
+              <div className="flex justify-center mt-3">
+                  <Button
+                    disabled={true}
+                    className="px-8 py-3 font-medium text-base bg-green-600/60 text-white/70 shadow-lg rounded-lg transition-all duration-300"
+                  >
+                    <Download className="w-5 h-5 mr-2" />
+                    Download Audio
+                  </Button>
               </div>
             </div>
           </CardContent>
