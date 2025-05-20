@@ -423,7 +423,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
               )}
 
               {/* Main Controls Section */}
-              <div className="flex-1 w-full flex flex-col gap-4">
+              <div className="flex-1 w-full flex flex-col gap-4 min-w-0">
                 {/* Track Info */}
                 <div className="mb-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <div className="text-lg font-semibold text-neutral-100 truncate max-w-full" title={trackTitle}>{trackTitle}</div>
