@@ -108,9 +108,13 @@ export default function Home() {
         setAudioInfo(null);
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[page.tsx] handleLoadAudio: Outer catch error:", err);
-      setError(err.message || "An unknown error occurred while fetching audio info.");
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("An unknown error occurred while fetching audio info.");
+      }
       setAudioInfo(null);
     } finally {
       setIsLoading(false);
