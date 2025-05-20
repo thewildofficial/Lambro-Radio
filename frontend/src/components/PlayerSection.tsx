@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import CircularFrequencyDial from "@/components/ui/CircularFrequencyDial";
 import { Play, Pause, SkipForward, Volume2, RotateCcw, Loader2, AlertCircle, Music2, Download, Share2 } from 'lucide-react';
 import { motion } from "framer-motion";
-import { applyTheme, getCurrentThemeValues } from '@/lib/theme-manager';
+import { applyTheme } from '@/lib/theme-manager';
 import WaveformVisualizer from './WaveformVisualizer';
 import {
   Carousel,
