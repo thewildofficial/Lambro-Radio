@@ -362,7 +362,6 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       requestAnimationFrame(() => { 
-        const newWaveTheme = getWaveSurferThemeColors();
         const styles = getComputedStyle(document.documentElement);
         const accentColor = styles.getPropertyValue('--theme-accent')?.trim();
         const accentForegroundColor = styles.getPropertyValue('--theme-accent-foreground')?.trim();
@@ -602,7 +601,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 >
                   <div className="relative px-2">
                     <CarouselContent className="mx-0">
-                      {PRESET_FREQUENCIES.map((preset, _idx) => (
+                      {PRESET_FREQUENCIES.map((preset) => (
                         <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
                           <Button
                             variant={selectedPresetValue === preset.value ? "secondary" : "outline"}
@@ -799,7 +798,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 >
                   <div className="relative px-2">
                     <CarouselContent className="mx-0">
-                      {PRESET_FREQUENCIES.map((preset, _idx) => (
+                      {PRESET_FREQUENCIES.map((preset) => (
                         <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
                           <Button
                             variant={selectedPresetValue === preset.value ? "secondary" : "outline"}
