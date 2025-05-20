@@ -6,13 +6,12 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription, // Optional, if we want a subtitle
-  DialogFooter,
-  // DialogClose, // Can be used for a close button in the footer
+  // DialogDescription, // Removed as it's unused (commented out in JSX)
+  // DialogFooter, // Removed as it's unused (commented out in JSX)
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input"; // Assuming Input is also a Shadcn component or we use a standard one
 import { Button } from "@/components/ui/button"; // Assuming Button is also a Shadcn component
-import { ShareIcon, DocumentDuplicateIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { ShareIcon, DocumentDuplicateIcon } from '@heroicons/react/24/outline';
 
 interface ShareDialogProps {
     isOpen: boolean;
