@@ -42,18 +42,17 @@ const PRESET_FREQUENCIES = [
   { label: "852 Hz", value: "852" },
   { label: "963 Hz", value: "963" },
 ];
-
 const SOLFEGGIO_TIDBITS = [
-  "Some theories link 528 Hz to cellular repair. While more research is needed, it\\'s a cornerstone of many sound healing practices.",
-  "Dr. Masaru Emoto\\'s experiments showed that water exposed to loving words or harmonious music formed beautiful crystals. Imagine what Solfeggio tones might do!",
+  "Some theories link 528 Hz to cellular repair. While more research is needed, it's a cornerstone of many sound healing practices.",
+  "Dr. Masaru Emoto's experiments showed that water exposed to loving words or harmonious music formed beautiful crystals. Imagine what Solfeggio tones might do!",
   "Cymatics visualizes sound: specific frequencies, like those in the Solfeggio scale, can create stunning geometric patterns in water or sand.",
   "Feeling out of sorts? 396 Hz is often used in sound baths to help release feelings of fear and guilt, aiming for a sense of grounding.",
-  "The \\'lost\\' Solfeggio scale was rediscovered using a mathematical sequence found in the Book of Numbers. Ancient wisdom, modern curiosity!",
-  "417 Hz is sometimes called the \\'frequency of transmutation,\\' believed to help clear negative energy and facilitate positive change at a deep level.",
+  "The 'lost' Solfeggio scale was rediscovered using a mathematical sequence found in the Book of Numbers. Ancient wisdom, modern curiosity!",
+  "417 Hz is sometimes called the 'frequency of transmutation,' believed to help clear negative energy and facilitate positive change at a deep level.",
   "Gregorian chants, which utilized similar ancient scales, were known for their profound spiritual and calming effects on listeners.",
   "While individual experiences vary, many report feelings of deep relaxation and clarity after listening to Solfeggio frequencies.",
-  "Sound therapy explores how different Hz values might interact with our body\\'s energy centers, or chakras, promoting balance.",
-  "Think of it like tuning an instrument! The idea is that Solfeggio frequencies help \\'tune\\' your body and mind for optimal resonance."
+  "Sound therapy explores how different Hz values might interact with our body's energy centers, or chakras, promoting balance.",
+  "Think of it like tuning an instrument! The idea is that Solfeggio frequencies help 'tune' your body and mind for optimal resonance."
 ];
 
 const formatTime = (time: number) => {
@@ -398,8 +397,35 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     setCurrentTime(formatTime(time));
   }, []); // No dependencies, formatTime is stable, setCurrentTime is stable
 
+  // Conditional Rendering Logic Reordered and Hero Section Added
+  if (!sourceAudioUrl && !isProcessingAudio) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
+      >
+        <Card className="w-full bg-neutral-800/70 backdrop-blur-lg border border-neutral-700/60 text-neutral-100 shadow-2xl rounded-2xl overflow-hidden min-h-[450px] flex flex-col items-center justify-center">
+          <CardContent className="p-6 md:p-8 text-center flex flex-col items-center gap-4">
+            <Music2 className="w-16 h-16 text-purple-400 mb-4 opacity-80" />
+            <h2 className="text-3xl font-bold tracking-tight text-neutral-50">
+              Welcome to Lambro Radio Tuner
+            </h2>
+            <p className="text-neutral-300 max-w-lg text-lg">
+              Paste a YouTube link into the input field (usually above this section) to load your favorite tracks.
+              Then, use the controls to explore different audio frequencies and discover new sonic dimensions.
+            </p>
+            <p className="text-sm text-neutral-400 mt-2">
+              Ready to tune your vibes?
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
+
   // Main Player UI (restored and refactored)
-  if (initialAudioUrl && !isProcessingAudio) {
+  if (sourceAudioUrl && !isProcessingAudio) {
   return (
       <motion.div
         initial={{ opacity: 0 }}
@@ -597,7 +623,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     );
   }
 
-  // Loading state for audio processing
+  // Loading state for audio processing (consolidated)
   if (isProcessingAudio && !processingError) {
      console.log('[PlayerSection] Rendering Loading state. isProcessingAudio:', isProcessingAudio, 'processingError:', processingError);
      return (
@@ -777,186 +803,8 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
      );
   }
   
-  // Loading state for audio processing
   // This console log will help verify states when deciding to show processing UI
-  console.log('[PlayerSection] Evaluating render conditions. isProcessingAudio:', isProcessingAudio, 'processingError:', processingError, 'initialAudioUrl:', initialAudioUrl);
-  if (isProcessingAudio && !processingError) {
-     return (
-       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.2 }}
-       >
-        <Card className="w-full bg-neutral-800/70 backdrop-blur-lg border border-neutral-700/60 text-neutral-100 shadow-2xl rounded-2xl overflow-hidden">
-          <CardContent className="p-6 md:p-8 flex flex-col gap-6">
-            {/* Top Section: Thumbnail + Track Info + Controls */}
-            <div className="flex flex-col md:flex-row gap-6 md:gap-8 items-center md:items-start">
-              {/* Thumbnail Section */}
-              {initialThumbnailUrl && (
-                <motion.div
-                  className="flex-shrink-0 w-40 h-40 md:w-48 md:h-48 rounded-2xl overflow-hidden shadow-lg relative bg-neutral-900"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.35, ease: 'easeOut' }}
-                >
-                  <img
-                    src={initialThumbnailUrl}
-                    alt="Track thumbnail"
-                    className="w-full h-full object-cover"
-                    style={{ background: '#222' }}
-                  />
-                  {/* Dim overlay during processing */}
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                    <Loader2 className="w-12 h-12 text-white animate-spin" />
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Main Controls Section */}
-              <div className="flex-1 w-full flex flex-col gap-4">
-                {/* Track Info with Processing indicator */}
-                <div className="mb-2 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <div className="text-lg font-semibold text-neutral-100 truncate max-w-full flex items-center" title={trackTitle}>
-                    <span>{initialTitle || "Processing audio..."}</span>
-                    <Loader2 className="w-4 h-4 ml-2 text-sky-500 animate-spin" />
-                  </div>
-                  <div className="text-sm text-neutral-400 tabular-nums">{trackDuration}</div>
-                </div>
-
-                {/* Waveform Visualization - still visible during processing */}
-                <div className="w-full h-[90px] mb-2 relative">
-                  <WaveformVisualizer 
-                    audioUrl={processedAudioUrl}
-                    isProcessing={true}
-                    isPlaying={false}
-                  />
-                  {/* Dim overlay for waveform during processing */}
-                  <div className="absolute inset-0 bg-black/30 rounded-md"></div>
-                </div>
-
-                {/* Player Controls - disabled during processing */}
-                <div className="flex items-center gap-4 mb-2 opacity-70">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full bg-neutral-700/60 hover:bg-neutral-600/80 text-neutral-100 shadow"
-                    disabled={true}
-                    aria-label="Play"
-                  >
-                    <Play className="w-6 h-6" />
-                  </Button>
-                <Slider 
-                    min={0}
-                    max={100}
-                    value={[volume * 100]}
-                    disabled={true}
-                    className="w-32"
-                    aria-label="Volume"
-                  />
-                  <Volume2 className="w-5 h-5 text-neutral-400" />
-                  <div className="ml-auto flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-full bg-neutral-700/60 hover:bg-neutral-600/80 text-neutral-100 shadow"
-                      disabled={true}
-                      aria-label="Restart"
-                    >
-                      <RotateCcw className="w-5 h-5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="rounded-full bg-neutral-700/60 hover:bg-neutral-600/80 text-neutral-100 shadow"
-                      disabled={true}
-                      aria-label="Skip to End"
-                    >
-                      <SkipForward className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Frequency Section */}
-            <div className="flex flex-col gap-4">
-              {/* Frequency Preset Carousel - disabled during processing */}
-              <div className="relative opacity-70">
-                <Carousel 
-                  setApi={setCarouselApi} 
-                  className="w-full"
-                >
-                  <div className="relative px-2">
-                    <CarouselContent className="mx-0">
-                      {PRESET_FREQUENCIES.map((preset, idx) => (
-                        <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
-                          <Button
-                            variant={selectedPresetValue === preset.value ? "secondary" : "outline"}
-                            className={`w-full py-2 rounded-lg text-xs font-medium transition-all ${selectedPresetValue === preset.value ? 'shadow-md' : 'text-neutral-300 hover:bg-neutral-700/70'}`}
-                            style={selectedPresetValue === preset.value ? activeItemStyle : {}}
-                            disabled={true}
-                            aria-pressed={selectedPresetValue === preset.value}
-                          >
-                            {preset.label}
-                          </Button>
-                        </CarouselItem>
-                      ))}
-                    </CarouselContent>
-                    
-                    <CarouselPrevious className="absolute left-1 top-1/2 -translate-y-1/2 z-10 bg-neutral-700/70 hover:bg-neutral-600/90 border-neutral-600/70 text-white rounded-full h-8 w-8 flex items-center justify-center disabled:opacity-50" disabled />
-                    <CarouselNext className="absolute right-1 top-1/2 -translate-y-1/2 z-10 bg-neutral-700/70 hover:bg-neutral-600/90 border-neutral-600/70 text-white rounded-full h-8 w-8 flex items-center justify-center disabled:opacity-50" disabled />
-                  </div>
-                </Carousel>
-              </div>
-              
-              {/* Frequency Dial */}
-              <div className="flex flex-col md:flex-row items-center justify-center gap-8 mt-2 opacity-70">
-                <div className="flex flex-col items-center">
-                  <Label htmlFor="frequency-dial" className="mb-1 text-neutral-300">Custom Frequency</Label>
-                  <CircularFrequencyDial
-                    id="frequency-dial"
-                    value={pendingFrequency === "default" ? "default" : pendingFrequency}
-                    onChange={handleDialChange}
-                    min={174}
-                    max={963}
-                    disabled={true}
-                  />
-                </div>
-              </div>
-
-              {/* Processing Status Banner / Fun Fact Display */}
-              <div className="my-2 text-center bg-indigo-900/50 p-4 rounded-lg border border-indigo-800/50 min-h-[60px] flex flex-col justify-center items-center">
-                <Loader2 className="w-5 h-5 text-indigo-300 animate-spin mb-2" />
-                <span className="text-indigo-100 text-sm px-2">{displayedFact || "Tuning the vibes..."}</span>
-              </div>
-
-              {/* Tune Button - disabled during processing */}
-              <div className="flex justify-center mt-4">
-                <Button 
-                  disabled={true}
-                  className="px-8 py-3 font-medium text-base bg-gradient-to-br from-purple-500/60 to-indigo-600/60 text-white/70 shadow-lg rounded-lg transition-all duration-300"
-                >
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Processing...
-                </Button>
-              </div>
-
-              {/* Download Button - Disabled during processing */}
-              <div className="flex justify-center mt-3">
-                  <Button
-                    disabled={true}
-                    className="px-8 py-3 font-medium text-base bg-green-600/60 text-white/70 shadow-lg rounded-lg transition-all duration-300"
-                  >
-                    <Download className="w-5 h-5 mr-2" />
-                    Download Audio
-                  </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-       </motion.div>
-     );
-  }
+  console.log('[PlayerSection] Evaluating render conditions. isProcessingAudio:', isProcessingAudio, 'processingError:', processingError, 'initialAudioUrl:', initialAudioUrl, 'sourceAudioUrl:', sourceAudioUrl);
   
   // Fallback if none of the above conditions are met (should ideally not be reached if logic is correct)
   return (
