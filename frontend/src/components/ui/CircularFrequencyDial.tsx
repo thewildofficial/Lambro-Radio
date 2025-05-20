@@ -252,8 +252,8 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
         const styles = getComputedStyle(document.documentElement);
         const accentColor = styles.getPropertyValue('--theme-accent')?.trim();
         return accentColor || 'hsl(210, 75%, 55%)'; // Enhanced default blue
-      } catch (error) {
-        console.error("Error getting theme color:", error);
+      } catch (err: unknown) {
+        console.error("Error getting theme color:", err);
         return 'hsl(210, 75%, 55%)'; // Enhanced fallback
       }
     }
@@ -266,7 +266,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       try {
         const styles = getComputedStyle(document.documentElement);
         return styles.getPropertyValue(variable)?.trim() || fallback;
-      } catch (error) {
+      } catch (_error: unknown) {
         return fallback;
       }
     }
@@ -303,7 +303,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
         const hue = parseInt(frequencyColor.match(/hsl\(\s*(\d+)/)?.[1] || "210");
         // Return a more premium, subtle glow effect
         return `hsla(${hue}, 85%, 55%, 0.45)`;
-      } catch (e) {
+      } catch (_e: unknown) {
         return `${frequencyColor}80`;
       }
     }
