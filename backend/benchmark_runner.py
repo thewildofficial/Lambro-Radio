@@ -138,8 +138,10 @@ async def run_benchmark_scenario(
             tasks.append(task)
 
         start_run_time = time.perf_counter()
+        print(f"    Launching {len(tasks)} requests for {scenario_name} at concurrency {concurrency}...")
         results = await asyncio.gather(*tasks, return_exceptions=True)
         end_run_time = time.perf_counter()
+        print(f"    All {len(tasks)} requests for {scenario_name} at concurrency {concurrency} completed.")
         
         total_run_duration = end_run_time - start_run_time
 
@@ -201,6 +203,7 @@ async def run_benchmark_scenario(
     }
 
 async def main():
+    print("Starting benchmark process...")
     all_results: List[Dict[str, Any]] = []
 
     # --- Scenario 1: /get_audio_info only ---
@@ -269,35 +272,45 @@ async def main():
         )
         all_results.append(result)
 
+    print("\nAll benchmark scenarios completed.")
+
     # --- Generate Markdown Report ---
-    print("\n\n--- Benchmark Results Summary ---")
-    
-    # Header
-    report_md = "| Scenario                            | Concurrency | Total Req. | Completed | Success | Failed | Avg RPS | Avg Latency (ms) | P50 Latency (ms) | P90 Latency (ms) | P99 Latency (ms) | Error Rate (%) | Avg Bytes Recv. |\n"
-    report_md += "|-------------------------------------|-------------|------------|-----------|---------|--------|---------|------------------|------------------|------------------|------------------|----------------|-----------------|\n"
+    print("Generating Markdown report...")
+    report_path = "benchmark_report.md"
+    header = (
+        "| Scenario                            | Concurrency | Total Req. | Completed | Success | Failed | Avg RPS | Avg Latency (ms) | P50 Latency (ms) | P90 Latency (ms) | P99 Latency (ms) | Error Rate (%) | Avg Bytes Recv. |\n"
+        "|-------------------------------------|-------------|------------|-----------|---------|--------|---------|------------------|------------------|------------------|------------------|----------------|-----------------|\n"
+    )
+    report_md = header
 
     for res in all_results:
+        # Defensive check for res structure
+        if not isinstance(res, dict):
+            print(f"Skipping malformed result item: {res}")
+            continue
+
         report_md += (
-            f"| {res['scenario_name']:<35} | "
-            f"{res['concurrency']:<11} | "
-            f"{res['total_requests']:<10} | "
-            f"{res['completed_requests']:<9} | "
-            f"{res['successful_requests']:<7} | "
-            f"{res['failed_requests']:<6} | "
-            f"{res['avg_rps']:.2f}       | " # Add padding if needed
-            f"{res['avg_latency_ms']:.2f}            | "
-            f"{res['p50_latency_ms']:.2f}            | "
-            f"{res['p90_latency_ms']:.2f}            | "
-            f"{res['p99_latency_ms']:.2f}            | "
-            f"{res['error_rate_percent']:.2f}             | "
-            f"{res['avg_bytes_transferred'] if res['avg_bytes_transferred'] is not None else 'N/A':<15} |\n"
+            f"| {res.get('scenario_name', 'Unknown Scenario'):<35} | "
+            f"{res.get('concurrency', 0):<11} | "
+            f"{res.get('total_requests', 0):<10} | "
+            f"{res.get('completed_requests', 0):<9} | "
+            f"{res.get('successful_requests', 0):<7} | "
+            f"{res.get('failed_requests', 0):<6} | "
+            f"{res.get('avg_rps', 0.0):.2f}       | " 
+            f"{res.get('avg_latency_ms', 0.0):.2f}            | "
+            f"{res.get('p50_latency_ms', 0.0):.2f}            | "
+            f"{res.get('p90_latency_ms', 0.0):.2f}            | "
+            f"{res.get('p99_latency_ms', 0.0):.2f}            | "
+            f"{res.get('error_rate_percent', 0.0):.2f}             | "
+            f"{res.get('avg_bytes_transferred', 'N/A') if res.get('avg_bytes_transferred') is not None else 'N/A':<15} |\n"
         )
     
     print(report_md)
 
-    with open("benchmark_report.md", "w") as f:
+    with open(report_path, "w") as f:
         f.write(report_md)
-    print("\nReport also saved to benchmark_report.md")
+    print(f"Report also saved to {report_path}")
+    print("Benchmark process finished.")
 
 
 if __name__ == "__main__":

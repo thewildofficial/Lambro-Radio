@@ -1,8 +1,9 @@
 fastapi
 uvicorn[standard]
 yt-dlp
-numpy
-soundfile
-aiohttp 
-cachetools
-pedalboard 
+# numpy # No longer needed
+# soundfile # No longer needed
+# pyrubberband # No longer needed
+# pedalboard # No longer needed
+aiohttp
+cachetools 

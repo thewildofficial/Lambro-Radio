@@ -17,11 +17,12 @@ A powerful web application for retuning and processing audio from YouTube videos
   - Time display and seeking
 - **Sharing & Export**:
   - Generate shareable links with frequency settings
-  - Download processed audio in WAV format
+  - Download processed audio
   - Copy link functionality
 - **Modern UI/UX**:
   - Responsive design
   - Dark theme
+  - User-friendly hero section on initial page load
   - Loading states and animations
   - Touch-friendly controls
 
@@ -98,6 +99,7 @@ Application will run on http://localhost:3000
 - Next.js 13+ (App Router)
 - TypeScript
 - Tailwind CSS
+- ShadCN UI - For core UI components (see `frontend/ShadCN-context.md` for a list of used components)
 - wavesurfer.js - Waveform visualization
 - Hero Icons - Beautiful SVG icons
 
@@ -120,6 +122,7 @@ See our [checklist.md](checklist.md) for detailed development plans including:
     ├── src/
     │   ├── app/        # Next.js app router
     │   └── components/ # React components
+    ├── ShadCN-context.md # Tracks used ShadCN UI components
     └── public/         # Static assets
 ```
 
@@ -140,4 +143,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Rubi (@DejaRu22)](https://twitter.com/DejaRu22) - Creator of the original LAMBRO RADIO YouTube channel, whose work inspired this application
 - [Rubber Band Library](https://breakfastquay.com/rubberband/) - High-quality audio processing
 - [wavesurfer.js](https://wavesurfer-js.org/) - Audio visualization
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube download library
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - YouTube download libraryx
