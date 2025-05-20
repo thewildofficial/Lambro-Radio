@@ -180,7 +180,7 @@ export default function Home() {
         className="w-full max-w-3xl mt-10 md:mt-14 text-center px-1 md:px-0"
         {...sectionAnimationProps(0.4)}
       >
-        <h2 className="text-3xl font-bold text-neutral-100 uppercase mb-6">
+        <h2 className="text-5xl font-bold uppercase mb-6 animated-concrete-text">
           F*CK YEAH, CONCRETE!
         </h2>
         <div className="bg-neutral-800/60 backdrop-blur-md border border-neutral-700/50 shadow-xl rounded-2xl p-3 md:p-4 inline-block">
