@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
+import type { CarouselApi } from "@/components/ui/carousel";
 
 // This default is now overridden by the prop from PlayerSection, which includes 0 for default.
 // const SOLFEGGIO_FREQUENCIES = [
@@ -19,9 +20,8 @@ interface CircularFrequencyDialProps {
   size?: number;
   min?: number;
   max?: number;
-  step?: number;
   disabled?: boolean;
-  carouselApi?: any;
+  carouselApi?: CarouselApi;
   handlePresetChange?: (value: number | "default") => void;
   selectedPresetValue?: number | "default";
 }
@@ -34,7 +34,6 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   size = 220, // Slightly smaller default size for better proportions
   min = 174,
   max = 963,
-  step = 1,
   disabled = false,
   carouselApi,
   handlePresetChange,
@@ -72,7 +71,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
 
   // Calculate frequency and angle from a given target angle
   const angleToFrequencyAndAngle = useCallback((targetAngle: number) => {
-      let normalizedAngle = (targetAngle - START_ANGLE_OFFSET + 360) % 360;
+      const normalizedAngle = (targetAngle - START_ANGLE_OFFSET + 360) % 360;
       const closestStepIndex = Math.round(normalizedAngle / anglePerStep) % numSteps;
     const snappedFrequency = frequencies[closestStepIndex];
       const snappedAngle = closestStepIndex * anglePerStep + START_ANGLE_OFFSET;
@@ -123,9 +122,9 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
           onChange(getExternalValue(newFrequency));
         }
       }
-    } catch (error) {
-      console.error("Error in dial interaction:", error);
-      }
+    } catch (_error: unknown) {
+      console.error("Error in dial interaction:", _error);
+    }
   }, [disabled, angleToFrequencyAndAngle, currentFrequency, onChange, getExternalValue]);
   
   // Handle cycling through frequencies with buttons or keyboard
@@ -147,8 +146,8 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       if (onChange) {
         onChange(getExternalValue(newFrequency));
       }
-    } catch (error) {
-      console.error("Error cycling frequency:", error);
+    } catch (_error: unknown) {
+      console.error("Error cycling frequency:", _error);
     }
   }, [disabled, getFrequencyIndex, currentFrequency, numSteps, frequencies, frequencyToAngle, onChange, getExternalValue]);
   
@@ -205,8 +204,6 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   const outerRingWidth = Math.max(4, size * 0.02);
   const innerDialScale = 0.85;
   const innerDialSize = size * innerDialScale;
-  const tickHeight = Math.max(12, size * 0.06);
-  const tickWidth = Math.max(2, size * 0.01);
   
   // Get display text
   const displayValue = currentFrequency === DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION 
@@ -228,8 +225,8 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
             }
           }
         }
-      } catch (error) {
-        console.error("Error in carousel selection:", error);
+      } catch (_error: unknown) {
+        console.error("Error in carousel selection:", _error);
       }
     };
     
@@ -238,12 +235,12 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
       return () => {
         try {
           carouselApi.off("select", handleCarouselSelect);
-        } catch (error) {
-          console.error("Error removing carousel event listener:", error);
+        } catch (_error: unknown) {
+          console.error("Error removing carousel event listener:", _error);
         }
       };
-    } catch (error) {
-      console.error("Error adding carousel event listener:", error);
+    } catch (_error: unknown) {
+      console.error("Error adding carousel event listener:", _error);
       return () => {};
     }
   }, [carouselApi, handlePresetChange, selectedPresetValue, frequencies]);
