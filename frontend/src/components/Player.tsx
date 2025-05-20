@@ -21,7 +21,6 @@ import {
     Card,
     CardContent,
     CardHeader,
-    CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -60,7 +59,6 @@ const Player: React.FC = () => {
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [shareUrl, setShareUrl] = useState<string>('');
-    const [sessionId] = useState(() => nanoid());
     const [isPlaying, setIsPlaying] = useState(false);
     const [volume, setVolume] = useState(1);
     const [prevVolume, setPrevVolume] = useState(1);
