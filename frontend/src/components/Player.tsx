@@ -14,7 +14,6 @@ import {
     MusicalNoteIcon,
     ClockIcon,
 } from '@heroicons/react/24/outline';
-import { nanoid } from 'nanoid';
 import ShareDialog from './ShareDialog';
 import FrequencySlider from './FrequencySlider';
 import {
