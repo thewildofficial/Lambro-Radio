@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from 'next/script';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -53,6 +54,18 @@ export default function RootLayout({
             {children}
           </main>
         </div>
+        {/* Umami Analytics Script */}
+        {process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL && process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
+          <Script
+            src={process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL}
+            data-website-id={process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID}
+            strategy="lazyOnload"
+            // Optional: To respect Do Not Track
+            // data-do-not-track="true"
+            // Optional: If your Umami instance is on a different domain than the site it's tracking AND it's self-hosted
+            // data-host-url="https://your-actual-umami-domain.com" // Only if self-hosted script is served from a different domain than where Umami dashboard is.
+          />
+        )}
       </body>
     </html>
   );
