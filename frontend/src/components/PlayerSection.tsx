@@ -84,6 +84,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
   // Use props for initial track info, fallback to placeholders if no initial audio
   const [trackTitle, setTrackTitle] = useState(initialTitle || "No audio loaded");
   const [trackDuration, setTrackDuration] = useState(initialDuration ? formatTime(initialDuration) : "--:--");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentTime, setCurrentTime] = useState("0:00");
 
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
