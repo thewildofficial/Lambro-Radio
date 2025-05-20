@@ -174,6 +174,25 @@ export default function Home() {
           </Card>
         </motion.div>
       </div>
+
+      {/* Meme Section */}
+      <motion.div
+        className="w-full max-w-3xl mt-10 md:mt-14 text-center px-1 md:px-0"
+        {...sectionAnimationProps(0.4)}
+      >
+        <h2 className="text-3xl font-bold text-neutral-100 uppercase mb-6">
+          F*CK YEAH, CONCRETE!
+        </h2>
+        <div className="bg-neutral-800/60 backdrop-blur-md border border-neutral-700/50 shadow-xl rounded-2xl p-3 md:p-4 inline-block">
+          <img
+            src="/images/concrete_meme.jpg"
+            alt="F*CK YEAH, CONCRETE meme - a dandelion thriving in concrete next to a wilting rose in soil"
+            className="max-w-full h-auto rounded-lg block"
+            style={{ maxWidth: '600px' }}
+          />
+        </div>
+      </motion.div>
+
       <footer className="text-center py-8 md:py-10 mt-8 md:mt-10 text-neutral-600 text-xs">
         © 2024 Lambro Radio. Tune into different vibrations.
       </footer>
