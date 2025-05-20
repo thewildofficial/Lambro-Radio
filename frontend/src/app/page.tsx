@@ -38,7 +38,7 @@ export default function Home() {
 
       if (freqParam) {
         const parsedFreq = freqParam === "default" ? "default" : parseInt(freqParam, 10);
-        if (!isNaN(parsedFreq) || parsedFreq === "default") {
+        if (parsedFreq === "default" || !isNaN(parsedFreq)) {
           console.log('[page.tsx] useEffect (URL Params): Found freqParam, setting sharedFrequency to:', parsedFreq);
           setSharedFrequency(parsedFreq);
         } else {
