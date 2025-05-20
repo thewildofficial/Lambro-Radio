@@ -45,7 +45,7 @@ const About: React.FC = () => {
             <ol className="list-decimal list-inside space-y-1">
               <li>Paste a YouTube URL into the player.</li>
               <li>Select your desired frequency and tempo.</li>
-              <li>Click "Load Audio" to process.</li>
+              <li>Click &quot;Load Audio&quot; to process.</li>
               <li>Play and enjoy the retuned track!</li>
             </ol>
           </div>
