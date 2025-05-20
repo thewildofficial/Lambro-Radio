@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import PlayerSection from '@/components/PlayerSection';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,10 +18,42 @@ interface AudioInfo {
 }
 
 export default function Home() {
+  const searchParams = useSearchParams();
   const [youtubeUrl, setYoutubeUrl] = React.useState('');
   const [audioInfo, setAudioInfo] = useState<AudioInfo | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sharedFrequency, setSharedFrequency] = useState<number | "default" | null>(null);
+  const [loadedFromShareLink, setLoadedFromShareLink] = useState(false);
+
+  useEffect(() => {
+    const videoIdParam = searchParams.get('yt');
+    const freqParam = searchParams.get('freq');
+
+    if (videoIdParam && !loadedFromShareLink) {
+      const incomingUrl = `https://www.youtube.com/watch?v=${videoIdParam}`;
+      console.log('[page.tsx] useEffect (URL Params): Found videoIdParam, setting youtubeUrl to:', incomingUrl);
+      setYoutubeUrl(incomingUrl);
+      setLoadedFromShareLink(true);
+
+      if (freqParam) {
+        const parsedFreq = freqParam === "default" ? "default" : parseInt(freqParam, 10);
+        if (!isNaN(parsedFreq) || parsedFreq === "default") {
+          console.log('[page.tsx] useEffect (URL Params): Found freqParam, setting sharedFrequency to:', parsedFreq);
+          setSharedFrequency(parsedFreq);
+        } else {
+          console.warn('[page.tsx] useEffect (URL Params): Invalid freqParam ignored:', freqParam);
+        }
+      }
+    }
+  }, [searchParams, loadedFromShareLink]);
+
+  useEffect(() => {
+    if (youtubeUrl && loadedFromShareLink && !audioInfo && !isLoading) {
+      console.log('[page.tsx] useEffect (Auto-load): youtubeUrl set from share link, calling handleLoadAudio.');
+      handleLoadAudio();
+    }
+  }, [youtubeUrl, loadedFromShareLink, audioInfo, isLoading]);
 
   const handleLoadAudio = async () => {
     if (!youtubeUrl.trim()) {
@@ -85,6 +118,14 @@ export default function Home() {
     }
   };
 
+  const handleUserUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setYoutubeUrl(e.target.value);
+    setLoadedFromShareLink(false);
+    setAudioInfo(null);
+    setError(null);
+    setSharedFrequency(null);
+  };
+
   const sectionAnimationProps = (delay = 0) => ({
     initial: { opacity: 0, y: 30 },
     animate: { opacity: 1, y: 0 },
@@ -106,7 +147,7 @@ export default function Home() {
             placeholder="Enter YouTube Music or Video URL to begin..."
             className="flex-grow bg-transparent border-none focus:ring-0 focus-visible:ring-offset-0 focus-visible:ring-0 placeholder-neutral-500 text-neutral-100 text-base p-1 h-auto"
             value={youtubeUrl}
-            onChange={(e) => setYoutubeUrl(e.target.value)}
+            onChange={handleUserUrlChange}
             disabled={isLoading}
           />
           <Button 
@@ -145,6 +186,8 @@ export default function Home() {
           initialTitle={audioInfo?.title}
           initialDuration={audioInfo?.duration}
           initialThumbnailUrl={audioInfo?.thumbnail_url}
+          originalYoutubeUrl={audioInfo ? youtubeUrl : undefined}
+          sharedFrequency={sharedFrequency ?? undefined}
         />
         {/* <div>PlayerSection temporarily commented out for debugging.</div> */}
       </motion.div>

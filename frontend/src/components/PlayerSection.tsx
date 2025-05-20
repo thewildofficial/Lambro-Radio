@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import CircularFrequencyDial from "@/components/ui/CircularFrequencyDial";
-import { Play, Pause, SkipForward, Volume2, SlidersHorizontal, RotateCcw, Loader2, AlertCircle, Music2, Download } from 'lucide-react';
+import { Play, Pause, SkipForward, Volume2, SlidersHorizontal, RotateCcw, Loader2, AlertCircle, Music2, Download, Share2 } from 'lucide-react';
 import { motion } from "framer-motion";
 import { applyTheme, initializeTheme, getCurrentThemeValues } from '@/lib/theme-manager';
 import WaveformVisualizer from './WaveformVisualizer';
@@ -20,6 +20,7 @@ import {
   type CarouselApi
 } from "@/components/ui/carousel";
 import WaveSurfer from 'wavesurfer.js';
+import { Toaster, toast } from "sonner";
 
 // Define props interface
 interface PlayerSectionProps {
@@ -27,6 +28,8 @@ interface PlayerSectionProps {
   initialTitle?: string;
   initialDuration?: number;
   initialThumbnailUrl?: string;
+  originalYoutubeUrl?: string;
+  sharedFrequency?: number | "default";
 }
 
 // Updated to include all Solfeggio frequencies and a Default
@@ -86,10 +89,12 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
   initialAudioUrl,
   initialTitle,
   initialDuration,
-  initialThumbnailUrl
+  initialThumbnailUrl,
+  originalYoutubeUrl,
+  sharedFrequency
 }) => {
-  const [currentFrequency, setCurrentFrequency] = useState<number | "default">("default");
-  const [pendingFrequency, setPendingFrequency] = useState<number | "default">("default"); // For UI feedback before tuning
+  const [currentFrequency, setCurrentFrequency] = useState<number | "default">(sharedFrequency ?? "default");
+  const [pendingFrequency, setPendingFrequency] = useState<number | "default">(sharedFrequency ?? "default");
   const [selectedPresetValue, setSelectedPresetValue] = useState<string | undefined>(PRESET_FREQUENCIES[0].value);
   const [carouselApi, setCarouselApi] = useState<CarouselApi | undefined>(undefined);
   const [activeItemStyle, setActiveItemStyle] = useState<React.CSSProperties>({}); // For dynamic button color
@@ -210,7 +215,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     }
 
     // Sanitize trackTitle to be filesystem-friendly
-    const fileNameBase = trackTitle.replace(/[^a-z0-9_\\-\\s]/gi, '_').replace(/\\s+/g, '_');
+    const fileNameBase = trackTitle.replace(/[^a-z0-9_\-\\s]/gi, '_').replace(/\s+/g, '_');
     const frequencyLabel = currentFrequency === "default" ? "original" : `${currentFrequency}Hz`;
     const fileName = `${fileNameBase}_${frequencyLabel}.mp3`;
 
@@ -221,6 +226,44 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     a.click();
     document.body.removeChild(a);
   }, [processedAudioUrl, trackTitle, currentFrequency]);
+
+  const handleShare = useCallback(() => {
+    if (!originalYoutubeUrl) {
+      toast.error("Cannot share: Original video URL is not available.");
+      return;
+    }
+    if (currentFrequency === undefined) {
+        toast.error("Cannot share: Frequency not set.");
+        return;
+    }
+
+    try {
+      let url;
+      try {
+        url = new URL(originalYoutubeUrl);
+      } catch (e) {
+        toast.error("Invalid original video URL format for sharing.");
+        console.error("Invalid URL for sharing:", originalYoutubeUrl, e);
+        return;
+      }
+      
+      const videoId = url.searchParams.get('v');
+      if (!videoId) {
+        toast.error("Could not extract video ID from the URL for sharing.");
+        return;
+      }
+      const shareUrl = `${window.location.origin}/?yt=${videoId}&freq=${currentFrequency}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        toast.success("Link copied to clipboard!");
+      }).catch(err => {
+        console.error("Failed to copy share link:", err);
+        toast.error("Failed to copy link. Check browser permissions.");
+      });
+    } catch (error) {
+      console.error("Error creating share link:", error);
+      toast.error("Failed to create share link due to an unexpected error.");
+    }
+  }, [originalYoutubeUrl, currentFrequency]);
 
   const handleThemeChange = useCallback((newFreq: number | string) => {
     applyTheme(newFreq.toString());
@@ -397,6 +440,16 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     setCurrentTime(formatTime(time));
   }, []); // No dependencies, formatTime is stable, setCurrentTime is stable
 
+  useEffect(() => {
+    if (sharedFrequency !== undefined && sharedFrequency !== currentFrequency) {
+      console.log('[PlayerSection] useEffect: sharedFrequency prop changed or provided:', sharedFrequency, 'Updating currentFrequency.');
+      setCurrentFrequency(sharedFrequency);
+      setPendingFrequency(sharedFrequency); // Also update pending frequency
+      handleThemeChange(sharedFrequency);
+      if (!hasTunedOnce && initialAudioUrl) setHasTunedOnce(true);
+    }
+  }, [sharedFrequency, currentFrequency, handleThemeChange, initialAudioUrl, hasTunedOnce]);
+
   // Conditional Rendering Logic Reordered and Hero Section Added
   if (!sourceAudioUrl && !isProcessingAudio) {
     return (
@@ -405,6 +458,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, ease: "easeInOut" }}
       >
+        <Toaster position="bottom-right" richColors />
         <Card className="w-full bg-neutral-800/70 backdrop-blur-lg border border-neutral-700/60 text-neutral-100 shadow-2xl rounded-2xl overflow-hidden min-h-[450px] flex flex-col items-center justify-center">
           <CardContent className="p-6 md:p-8 text-center flex flex-col items-center gap-4">
             <Music2 className="w-16 h-16 text-purple-400 mb-4 opacity-80" />
@@ -597,15 +651,27 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 </Button>
               </div>
 
-              {/* Download Button */}
-              <div className="flex justify-center mt-3">
+              {/* Download and Share Buttons */}
+              <div className="flex items-center justify-center gap-4">
                 <Button
+                  variant="outline"
+                  size="icon"
+                  className="bg-neutral-700/80 hover:bg-neutral-600/90 border-neutral-600 text-neutral-200 transition-all duration-150 ease-out active:scale-95 w-11 h-11"
                   onClick={handleDownload}
                   disabled={!processedAudioUrl || isProcessingAudio}
-                  className="px-8 py-3 font-medium text-base bg-green-600 hover:bg-green-500 text-white shadow-lg rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Download Processed Audio"
                 >
-                  <Download className="w-5 h-5 mr-2" />
-                  Download Audio
+                  <Download className="w-5 h-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="bg-neutral-700/80 hover:bg-neutral-600/90 border-neutral-600 text-neutral-200 transition-all duration-150 ease-out active:scale-95 w-11 h-11"
+                  onClick={handleShare}
+                  disabled={!originalYoutubeUrl || currentFrequency === undefined || isProcessingAudio}
+                  title="Share Link with Current Settings"
+                >
+                  <Share2 className="w-5 h-5" />
                 </Button>
               </div>
 

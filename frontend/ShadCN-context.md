@@ -9,6 +9,7 @@ This file lists the ShadCN UI components that have been added to the `frontend/s
 - input
 - label
 - slider
+- sonner
 - switch
 - toggle
 - toggle-group 
