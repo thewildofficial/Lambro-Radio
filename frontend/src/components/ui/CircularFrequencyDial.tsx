@@ -248,6 +248,7 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   // Calculate the color based on the current frequency - read from CSS variables for theme consistency
   const getFrequencyThemeColor = () => {
     if (typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       try {
         const styles = getComputedStyle(document.documentElement);
         const accentColor = styles.getPropertyValue('--theme-accent')?.trim();
