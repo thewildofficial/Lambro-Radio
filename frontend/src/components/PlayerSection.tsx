@@ -4,12 +4,11 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import CircularFrequencyDial from "@/components/ui/CircularFrequencyDial";
-import { Play, Pause, SkipForward, Volume2, SlidersHorizontal, RotateCcw, Loader2, AlertCircle, Music2, Download, Share2 } from 'lucide-react';
+import { Play, Pause, SkipForward, Volume2, RotateCcw, Loader2, AlertCircle, Music2, Download, Share2 } from 'lucide-react';
 import { motion } from "framer-motion";
-import { applyTheme, initializeTheme, getCurrentThemeValues } from '@/lib/theme-manager';
+import { applyTheme, getCurrentThemeValues } from '@/lib/theme-manager';
 import WaveformVisualizer from './WaveformVisualizer';
 import {
   Carousel,
@@ -19,7 +18,6 @@ import {
   CarouselPrevious,
   type CarouselApi
 } from "@/components/ui/carousel";
-import WaveSurfer from 'wavesurfer.js';
 import { Toaster, toast } from "sonner";
 
 // Define props interface
@@ -188,9 +186,13 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
       if (!hasTunedOnce) setHasTunedOnce(true); 
       setProcessingError(null);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[handleProcessAndLoadAudio] Error during audio processing pipeline:", err);
-      setProcessingError(err.message || "An unknown error occurred during processing.");
+      if (err instanceof Error) {
+        setProcessingError(err.message);
+      } else {
+        setProcessingError("An unknown error occurred during processing.");
+      }
       setTrackTitle(initialTitle || "Error processing");
       setProcessedAudioUrl(null);
     } finally {
@@ -401,8 +403,6 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
     console.log(`[PlayerSection] handlePlayPause: New isPlaying will be: ${!isPlaying}`);
   };
   
-  const isDefaultPreset = (presetValue: string) => presetValue === "default";
-
   // Effect for cycling fun facts during loading
   useEffect(() => {
     let factInterval: NodeJS.Timeout | undefined = undefined;
@@ -602,7 +602,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 >
                   <div className="relative px-2">
                     <CarouselContent className="mx-0">
-                      {PRESET_FREQUENCIES.map((preset, idx) => (
+                      {PRESET_FREQUENCIES.map((preset, _idx) => (
                         <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
                           <Button
                             variant={selectedPresetValue === preset.value ? "secondary" : "outline"}
@@ -799,7 +799,7 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
                 >
                   <div className="relative px-2">
                     <CarouselContent className="mx-0">
-                      {PRESET_FREQUENCIES.map((preset, idx) => (
+                      {PRESET_FREQUENCIES.map((preset, _idx) => (
                         <CarouselItem key={preset.value} className="basis-1/4 md:basis-1/5 px-1">
                           <Button
                             variant={selectedPresetValue === preset.value ? "secondary" : "outline"}
