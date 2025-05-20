@@ -4,17 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import yt_dlp
 import io
-import numpy as np
-import soundfile as sf
-from pedalboard import Pedalboard, PitchShift
 import math
 import asyncio
-import tempfile
-import os
 import traceback
 import subprocess
 from cachetools import LRUCache
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Any
+import soundfile as sf
+from pedalboard import Pedalboard, PitchShift, Reverb
+import numpy as np
+import aiohttp
 
 app = FastAPI(title="Lambro Radio Backend")
 
@@ -87,7 +86,7 @@ async def get_audio_info(payload: dict):
                 selected_format = None
                 for f in info.get('formats', []):
                     # Prioritize opus, then m4a (aac), then any other audio-only format
-                    if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
+                     if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
                         if f.get('ext') == 'opus':
                             selected_format = f
                             break
@@ -126,137 +125,177 @@ async def get_audio_info(payload: dict):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal server error processing request.")
 
-def calculate_semitones(target_hz, base_hz=440.0):
+def calculate_pitch_factor(target_hz: Optional[float], base_hz: float = 440.0) -> Optional[float]:
     if target_hz is None or target_hz <= 0 or base_hz <= 0:
-        return 0
-    return 12 * math.log2(target_hz / base_hz)
+        return None # No change
+    return target_hz / base_hz
 
-async def process_and_stream_audio_generator(audio_url: str, target_frequency: float | None, ai_preset: bool = False):
-    final_processed_temp_file_path = None
+async def process_and_stream_audio_generator(audio_url: str, target_frequency: Optional[float], ai_preset: bool = False):
     ffmpeg_process = None
+    temp_output_file = None # Not used anymore, pedalboard works in memory
 
     try:
-        print(f"ffmpeg: Processing URL {audio_url} with{' AI preset' if ai_preset else ''} for initial conversion (pre-pitch shift)...")
-        
-        ffmpeg_command_parts = ['ffmpeg', '-i', audio_url]
-        
-        audio_filters_ffmpeg_initial = []
+        y_processed = None
+        sample_rate = 44100 # Target sample rate
+
+        pitch_factor = calculate_pitch_factor(target_frequency)
+        apply_pitch_shift = pitch_factor is not None and abs(pitch_factor - 1.0) > 1e-4
+
         if ai_preset:
-            ai_echo_filters = "aecho=0.8:0.88:60|120:0.4|0.3,aecho=0.6:0.7:100|200:0.3|0.2"
-            audio_filters_ffmpeg_initial.append(ai_echo_filters)
-        
-        if audio_filters_ffmpeg_initial:
-            ffmpeg_command_parts.extend(['-af', ",".join(audio_filters_ffmpeg_initial)])
-        
-        ffmpeg_command_parts += [
-            '-vn',
-            '-acodec', 'pcm_s16le',
-            '-ar', '44100',
-            '-ac', '2',
-            '-f', 'wav',
-            '-'
-        ]
+            # Step 1 (AI Preset): Use ffmpeg to apply AI echo and get PCM audio
+            print(f"ffmpeg: Applying AI preset for {audio_url}")
+            ffmpeg_command_parts = [
+                'ffmpeg', '-i', audio_url,
+                '-af', "aecho=0.8:0.9:500:0.3", # Simplified echo
+                '-vn', '-acodec', 'pcm_s16le', '-ar', str(sample_rate), '-ac', '2', '-f', 'wav', '-'
+            ]
+            print(f"Executing ffmpeg command (AI preset): {' '.join(ffmpeg_command_parts)}")
+            ffmpeg_process = await asyncio.create_subprocess_exec(
+                *ffmpeg_command_parts,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout_data, stderr_data = await ffmpeg_process.communicate()
+            ffmpeg_stderr_str = stderr_data.decode(errors='ignore').strip()
+            if ffmpeg_stderr_str:
+                print(f"ffmpeg stderr (AI preset):\n{ffmpeg_stderr_str}")
+            
+            if ffmpeg_process.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"ffmpeg AI preset processing failed (code {ffmpeg_process.returncode})")
+            if not stdout_data:
+                raise HTTPException(status_code=500, detail="ffmpeg AI preset produced no output.")
 
-        print(f"Executing ffmpeg command (initial conversion): {' '.join(ffmpeg_command_parts)}")
+            # Convert PCM data from ffmpeg to NumPy array
+            with io.BytesIO(stdout_data) as pcm_buffer:
+                y_audio, sr_orig = sf.read(pcm_buffer, dtype='float32')
+            print(f"Soundfile: Read AI-preset audio. SR: {sr_orig}, Shape: {y_audio.shape}")
+            if sr_orig != sample_rate:
+                # This shouldn't happen if ffmpeg -ar is set correctly, but as a fallback
+                print(f"Warning: Sample rate from ffmpeg AI step ({sr_orig}) doesn't match target ({sample_rate}). Resampling may be needed or quality affected.")
+            
+            y_processed = y_audio
 
-        ffmpeg_process = await asyncio.create_subprocess_exec(
-            *ffmpeg_command_parts,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        ffmpeg_stdout_data, ffmpeg_stderr_data = await ffmpeg_process.communicate()
-        
-        ffmpeg_stderr_str = ffmpeg_stderr_data.decode(errors='ignore').strip()
-        if ffmpeg_stderr_str:
-            print(f"ffmpeg stderr output (initial conversion):\n{ffmpeg_stderr_str}")
+        # Step 2: Apply Pitch Shifting with Pedalboard (if needed)
+        # If AI preset was applied, y_processed is already populated.
+        # If no AI preset, load audio directly.
+        if apply_pitch_shift:
+            if y_processed is None: # No AI preset, load audio directly for pitch shifting
+                print(f"aiohttp/soundfile: Fetching and decoding for pitch shift: {audio_url}")
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(audio_url) as response:
+                        if response.status != 200:
+                            raise HTTPException(status_code=response.status, detail=f"Failed to fetch audio for pitch shift: {audio_url}")
+                        audio_bytes = await response.read()
+                with io.BytesIO(audio_bytes) as audio_buffer:
+                    y_audio, sr_orig = sf.read(audio_buffer, dtype='float32')
+                print(f"Soundfile: Read direct audio. SR: {sr_orig}, Shape: {y_audio.shape}")
+                # Note: Pedalboard will use its own sample_rate setting or the board's.
+                # We ensure output sample rate with sf.write later.
+                # For Pedalboard, it's best to process at original SR if possible, then resample output if needed.
+                # However, our ffmpeg step standardizes to `sample_rate` (44100).
+                # For consistency, if direct loading, Pedalboard should also aim for this.
+                # For simplicity, pedalboard will use `sr_orig` and `sf.write` will handle final rate if different.
+                y_processed = y_audio
+                sample_rate = sr_orig # Use original sample rate for pedalboard processing if loaded directly
 
-        if ffmpeg_process.returncode != 0:
-            error_message_ffmpeg = f"ffmpeg (initial conversion) failed (code {ffmpeg_process.returncode}). See stderr."
-            raise HTTPException(status_code=500, detail=error_message_ffmpeg)
-        elif not ffmpeg_stdout_data:
-            error_message_ffmpeg_nodata = f"ffmpeg (initial conversion) produced no output. See stderr."
-            raise HTTPException(status_code=500, detail=error_message_ffmpeg_nodata)
-        
-        print("ffmpeg: Initial conversion completed. Reading into soundfile...")
+            print(f"Pedalboard: Applying pitch shift with factor: {pitch_factor} (Target SR for Pedalboard: {sample_rate})")
+            
+            # Pedalboard expects (num_channels, num_samples) or (num_samples,)
+            # soundfile reads as (num_samples, num_channels)
+            y_to_shift = y_processed.T if y_processed.ndim == 2 else y_processed
+            
+            board = Pedalboard([PitchShift(semitones=12 * math.log2(pitch_factor))], sample_rate=float(sample_rate))
+            y_shifted_pb = board(y_to_shift, sample_rate=float(sample_rate)) # Process with specified sample rate
+            
+            y_processed = y_shifted_pb.T if y_shifted_pb.ndim == 2 else y_shifted_pb
+            print("Pedalboard: Pitch shift applied.")
 
-        # 2. Soundfile reads from ffmpeg's stdout
-        try:
-            y, sr = sf.read(io.BytesIO(ffmpeg_stdout_data), dtype='float32')
-            print(f"Soundfile: Read audio from ffmpeg. Sample Rate: {sr}, Shape: {y.shape}")
-        except Exception as e:
-            error_message_sf_read = f"Soundfile failed to read ffmpeg output: {e}. Check ffmpeg stderr."
-            print(error_message_sf_read)
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=error_message_sf_read)
+        # Step 3: Ensure audio is loaded if no AI and no Pitch Shift (just transcode to WAV)
+        if y_processed is None:
+            print(f"aiohttp/soundfile: Fetching and decoding for WAV conversion: {audio_url}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(audio_url) as response:
+                    if response.status != 200:
+                        raise HTTPException(status_code=response.status, detail=f"Failed to fetch audio for WAV conversion: {audio_url}")
+                    audio_bytes = await response.read()
+            with io.BytesIO(audio_bytes) as audio_buffer:
+                y_processed, sr_orig = sf.read(audio_buffer, dtype='float32')
+            print(f"Soundfile: Read direct audio for WAV. SR: {sr_orig}, Shape: {y_processed.shape}")
+            sample_rate = sr_orig # Use original sample rate for writing
 
-        # 3. Pitch Shifting (if target_frequency is set) using spotify-pedalboard
-        y_processed = y 
-        if target_frequency is not None: 
-            semitones_shift = calculate_semitones(target_frequency)
-            print(f"Pedalboard: Calculated Semitones Shift: {semitones_shift}")
-            if semitones_shift != 0:
-                print("Pedalboard: Applying pitch shift...")
-                y_to_shift = y_processed
-                transposed_to_pedalboard = False
-                if y_to_shift.ndim == 2 and y_to_shift.shape[1] > 1: 
-                    y_to_shift = y_to_shift.T 
-                    transposed_to_pedalboard = True
-                try:
-                    board = Pedalboard([PitchShift(semitones=semitones_shift)], sample_rate=sr)
-                    y_shifted_pb = board(y_to_shift) 
-                    if transposed_to_pedalboard and y_shifted_pb.ndim == 2:
-                        y_processed = y_shifted_pb.T 
-                    else:
-                        y_processed = y_shifted_pb 
-                    print("Pedalboard: Pitch shift applied.")
-                except Exception as e:
-                    print(f"Error during spotify-pedalboard pitch shifting: {e}")
-                    traceback.print_exc()
-                    # Fallback to y_processed without pitch shift
-        
-        # Ensure y_processed is stereo for sf.write
+        # Step 4: Stream the processed audio (y_processed) as WAV
+        if y_processed is None:
+            raise HTTPException(status_code=500, detail="Audio processing resulted in no audio data.")
+
+        # Ensure stereo output for sf.write
         if y_processed.ndim == 1:
-             print("Ensuring stereo output for mono processed audio.")
-             y_processed = np.stack((y_processed, y_processed), axis=-1)
-        elif y_processed.ndim == 2 and y_processed.shape[1] == 1 : # Mono in shape (N,1)
-             print("Ensuring stereo output for mono (N,1) processed audio.")
+            print("Processed audio is mono, converting to stereo for WAV output.")
+            y_processed = np.stack((y_processed, y_processed), axis=-1)
+        elif y_processed.ndim == 2 and y_processed.shape[1] == 1: # Mono but shape (N,1)
+             print("Processed audio is mono (N,1), converting to stereo (N,2) for WAV output.")
              y_processed = np.concatenate((y_processed, y_processed), axis=1)
 
 
-        # 4. Write final processed audio to an in-memory buffer for streaming
-        print("Soundfile: Preparing in-memory buffer for final processed audio...")
-        in_memory_audio_buffer = io.BytesIO()
-        try:
-            sf.write(in_memory_audio_buffer, y_processed, sr, format='WAV', subtype='PCM_16')
-            in_memory_audio_buffer.seek(0) 
-            print(f"Soundfile: Final processed audio written to in-memory buffer. Size: {in_memory_audio_buffer.getbuffer().nbytes} bytes")
-        except Exception as e:
-            error_message_sf_write = f"Soundfile failed to write final processed audio: {e}"
-            print(error_message_sf_write)
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=error_message_sf_write)
+        print(f"Soundfile: Writing final audio to WAV stream. Target SR for sf.write: {sample_rate}")
+        # Output WAV at 44.1kHz stereo, s16 PCM
+        output_target_sr = 44100
+        
+        # Resample with Pedalboard if original/processing SR was different from final output SR
+        # This step is crucial if sr_orig from direct load was used and is not 44100
+        if sample_rate != output_target_sr:
+            print(f"Pedalboard: Resampling from {sample_rate} Hz to {output_target_sr} Hz before encoding.")
+            # Pedalboard resamples. board(audio_array, sample_rate_of_array)
+            # To resample, we can pass it through an empty board or a board with Resample effect
+            # For simplicity, let's use sf.write's capability if it's efficient enough or implement Resample effect
+            # sf.write does not resample. We need to resample y_processed.
+            resampler_board = Pedalboard([], sample_rate=float(sample_rate))
+            y_processed_resampled = resampler_board.resample(y_processed, output_target_sr)
+            y_to_write = y_processed_resampled
+            final_sr_for_sf = output_target_sr
+        else:
+            y_to_write = y_processed
+            final_sr_for_sf = sample_rate
 
-        # 5. Stream the final processed audio
+        output_buffer = io.BytesIO()
+        sf.write(output_buffer, y_to_write, samplerate=int(final_sr_for_sf), format='WAV', subtype='PCM_16')
+        output_buffer.seek(0)
+        
         chunk_size = 8192
         while True:
-            chunk = in_memory_audio_buffer.read(chunk_size)
+            chunk = output_buffer.read(chunk_size)
             if not chunk:
                 break
             yield chunk
-            await asyncio.sleep(0.001) 
-        print("Streaming from soundfile-written buffer completed.")
+        print("Streaming processed audio completed.")
 
+    except HTTPException: # Re-raise HTTPExceptions
+        raise
     except Exception as e:
         print(f"Error during audio processing and streaming generator: {e}")
         traceback.print_exc()
-        raise # Re-raise the exception to be handled by FastAPI or calling function
+        # Proper cleanup for ffmpeg if it was used
+        if ffmpeg_process and ffmpeg_process.returncode is None:
+            try:
+                ffmpeg_process.terminate()
+                await ffmpeg_process.wait(timeout=1.0)
+            except ProcessLookupError: pass
+            except asyncio.TimeoutError: ffmpeg_process.kill()
+            except Exception as term_e: print(f"Error terminating ffmpeg: {term_e}")
+        
+        raise HTTPException(status_code=500, detail=f"Internal server error during audio processing: {str(e)}")
     finally:
-        # Clean up: ffmpeg process is handled by communicate().
-        # No temporary file to delete on disk for the final audio anymore.
-        # If in_memory_audio_buffer needs explicit closing, it would be here, 
-        # but BytesIO usually managed by GC.
-        if final_processed_temp_file_path: # This var is no longer used for a path
-            pass # No disk file to clean up for final_processed_temp_file_path
+        if ffmpeg_process and ffmpeg_process.returncode is None: # Ensure ffmpeg is cleaned up
+            print("Terminating ffmpeg process in finally block (if generator error)...")
+            try:
+                ffmpeg_process.terminate()
+                await ffmpeg_process.wait(timeout=1.0)
+            except ProcessLookupError: pass # Process already finished
+            except asyncio.TimeoutError:
+                print("ffmpeg process did not terminate gracefully, killing.")
+                ffmpeg_process.kill()
+                await ffmpeg_process.wait()
+            except Exception as e_finally:
+                print(f"Error during ffmpeg cleanup in finally: {e_finally}")
         print("process_and_stream_audio_generator finished.")
 
 @app.post("/process_audio")
@@ -287,4 +326,4 @@ async def stream_processed_audio_endpoint(
     )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False, workers=4)
