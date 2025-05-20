@@ -297,17 +297,15 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   
   // Calculate a complementary glow color with improved aesthetics
   const getGlowColor = () => {
-    if (frequencyColor.startsWith('hsl')) {
-      // Extract hue from HSL and create a complementary glow
-      try {
-        const hue = parseInt(frequencyColor.match(/hsl\(\s*(\d+)/)?.[1] || "210");
-        // Return a more premium, subtle glow effect
-        return `hsla(${hue}, 85%, 55%, 0.45)`;
-      } catch (_e: unknown) {
-        return `${frequencyColor}80`;
-      }
+    const frequencyColor = getFrequencyThemeColor();
+    try {
+      const hue = parseInt(frequencyColor.match(/hsl\\(\\s*(\\d+)/)?.[1] || "210");
+      // Return a more premium, subtle glow effect
+      return `hsla(${hue}, 85%, 55%, 0.18)`; // Adjusted alpha for subtlety
+    } catch { // Changed from catch (_e: unknown)
+      // Fallback glow if regex or parsing fails - could be a less vibrant version or a neutral one
+      return `${frequencyColor}30`; // Use 30 as alpha for a subtle fallback glow
     }
-    return `${frequencyColor}80`;
   };
 
   const glowColor = getGlowColor();
