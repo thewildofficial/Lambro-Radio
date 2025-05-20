@@ -185,7 +185,7 @@ export default function Home() {
         </h2>
         <div className="bg-neutral-800/60 backdrop-blur-md border border-neutral-700/50 shadow-xl rounded-2xl p-3 md:p-4 inline-block">
           <img
-            src="/images/concrete_meme.jpg"
+            src="/images/dandelion_meme.png"
             alt="F*CK YEAH, CONCRETE meme - a dandelion thriving in concrete next to a wilting rose in soil"
             className="max-w-full h-auto rounded-lg block"
             style={{ maxWidth: '600px' }}
