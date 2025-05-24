@@ -301,7 +301,7 @@ const Player: React.FC = () => {
                             className="bg-apple-bg-tertiary border-apple-border-secondary text-apple-text-primary placeholder-apple-text-tertiary focus-visible:ring-apple-accent-blue text-sm"
                         />
                         <Button
-                            variant="default_apple"
+                            variant="default"
                             size="default"
                             onClick={() => handleFetchAudioInfo()}
                             disabled={isLoading || isProcessing || !youtubeUrl}
@@ -356,8 +356,8 @@ const Player: React.FC = () => {
                         
                         <div className="flex items-center justify-center sm:justify-between space-x-3 sm:space-x-4">
                             <Button 
-                                variant="outline_apple"
-                                size="icon_apple"
+                                variant="outline"
+                                size="icon"
                                 onClick={() => handleSeek(-10)} 
                                 disabled={!processedAudioUrl || isLoading || isProcessing}
                                 aria-label="Seek backward 10 seconds"
@@ -367,8 +367,8 @@ const Player: React.FC = () => {
                             </Button>
 
                             <Button
-                                variant="default_apple"
-                                size="icon_apple"
+                                variant="default"
+                                size="icon"
                                 onClick={handlePlayPause}
                                 disabled={!processedAudioUrl || isLoading || isProcessing}
                                 className="w-12 h-12 p-0 rounded-full text-white"
@@ -378,8 +378,8 @@ const Player: React.FC = () => {
                             </Button>
 
                             <Button 
-                                variant="outline_apple"
-                                size="icon_apple"
+                                variant="outline"
+                                size="icon"
                                 onClick={() => handleSeek(10)} 
                                 disabled={!processedAudioUrl || isLoading || isProcessing}
                                 aria-label="Seek forward 10 seconds"
@@ -390,8 +390,8 @@ const Player: React.FC = () => {
 
                             <div className="hidden sm:flex items-center space-x-2 flex-grow max-w-[150px]">
                                 <Button 
-                                    variant="outline_apple"
-                                    size="icon_apple" 
+                                    variant="outline"
+                                    size="icon" 
                                     onClick={toggleMute} 
                                     aria-label={volume === 0 ? "Unmute" : "Mute"}
                                     className="text-apple-text-secondary hover:text-apple-text-primary"
@@ -416,8 +416,8 @@ const Player: React.FC = () => {
                         
                         <div className="sm:hidden flex items-center space-x-2 pt-3">
                              <Button 
-                                variant="outline_apple" 
-                                size="icon_apple" 
+                                variant="outline" 
+                                size="icon" 
                                 onClick={toggleMute} 
                                 aria-label={volume === 0 ? "Unmute" : "Mute"}
                                 className="text-apple-text-secondary hover:text-apple-text-primary"
@@ -466,7 +466,7 @@ const Player: React.FC = () => {
                             
                             <div className="md:col-span-2 flex items-center justify-center pt-2">
                                 <Button
-                                    variant={aiPresetActive ? "default_apple" : "outline_apple"}
+                                    variant={aiPresetActive ? "default" : "outline"}
                                     onClick={() => setAiPresetActive(!aiPresetActive)}
                                     disabled={isLoading || isProcessing}
                                     className={`px-4 py-2 text-sm rounded-apple-sm flex items-center gap-2 
@@ -483,8 +483,8 @@ const Player: React.FC = () => {
 
                         <div className="flex items-center justify-end space-x-3 pt-6 mt-4 border-t border-apple-border-primary">
                             <Button
-                                variant="outline_apple"
-                                size="icon_apple"
+                                variant="outline"
+                                size="icon"
                                 onClick={handleShare}
                                 disabled={!youtubeUrl}
                                 title="Share Track"
@@ -493,8 +493,8 @@ const Player: React.FC = () => {
                                 <ShareIcon className="h-5 w-5" />
                             </Button>
                             <Button
-                                variant="outline_apple"
-                                size="icon_apple"
+                                variant="outline"
+                                size="icon"
                                 onClick={handleDownload}
                                 disabled={!processedAudioUrl || isLoading || isProcessing}
                                 title="Download Track"
