@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import type { CarouselApi } from "@/components/ui/carousel";
 
@@ -40,7 +40,18 @@ const CircularFrequencyDial: React.FC<CircularFrequencyDialProps> = ({
   selectedPresetValue,
 }) => {
   // Define our frequency presets
-  const frequencies = [DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION, min, 285, 396, 417, 528, 639, 741, 852, max];
+  const frequencies = useMemo(() => [
+    DEFAULT_FREQUENCY_INTERNAL_REPRESENTATION, 
+    min, 
+    285, 
+    396, 
+    417, 
+    528, 
+    639, 
+    741, 
+    852, 
+    max
+  ], [min, max]); // Dependencies for useMemo
   
   // Calculate angles
   const numSteps = frequencies.length;
