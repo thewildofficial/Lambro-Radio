@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import PlayerSection from '@/components/PlayerSection';
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Link2, Loader2 } from 'lucide-react';
 import { motion } from "framer-motion";
+import Image from 'next/image';
 
 interface AudioInfo {
   audio_stream_url: string;
@@ -17,7 +18,7 @@ interface AudioInfo {
   thumbnail_url?: string;
 }
 
-export default function Home() {
+const PageContent: React.FC = () => {
   const searchParams = useSearchParams();
   const [youtubeUrl, setYoutubeUrl] = React.useState('');
   const [audioInfo, setAudioInfo] = useState<AudioInfo | null>(null);
@@ -48,14 +49,7 @@ export default function Home() {
     }
   }, [searchParams, loadedFromShareLink]);
 
-  useEffect(() => {
-    if (youtubeUrl && loadedFromShareLink && !audioInfo && !isLoading) {
-      console.log('[page.tsx] useEffect (Auto-load): youtubeUrl set from share link, calling handleLoadAudio.');
-      handleLoadAudio();
-    }
-  }, [youtubeUrl, loadedFromShareLink, audioInfo, isLoading]);
-
-  const handleLoadAudio = async () => {
+  const handleLoadAudio = useCallback(async () => {
     if (!youtubeUrl.trim()) {
       setError("Please enter a YouTube URL.");
       return;
@@ -120,7 +114,14 @@ export default function Home() {
       setIsLoading(false);
       console.log("[page.tsx] handleLoadAudio: finally block. isLoading set to false.");
     }
-  };
+  }, [youtubeUrl]);
+
+  useEffect(() => {
+    if (youtubeUrl && loadedFromShareLink && !audioInfo && !isLoading) {
+      console.log('[page.tsx] useEffect (Auto-load): youtubeUrl set from share link, calling handleLoadAudio.');
+      handleLoadAudio();
+    }
+  }, [youtubeUrl, loadedFromShareLink, audioInfo, isLoading, handleLoadAudio]);
 
   const handleUserUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setYoutubeUrl(e.target.value);
@@ -193,7 +194,6 @@ export default function Home() {
           originalYoutubeUrl={audioInfo ? youtubeUrl : undefined}
           sharedFrequency={sharedFrequency ?? undefined}
         />
-        {/* <div>PlayerSection temporarily commented out for debugging.</div> */}
       </motion.div>
       
       <div className="w-full max-w-3xl mt-10 md:mt-14 grid md:grid-cols-2 gap-6 md:gap-8 px-1 md:px-0">
@@ -222,7 +222,6 @@ export default function Home() {
         </motion.div>
       </div>
 
-      {/* Meme Section */}
       <motion.div
         className="w-full max-w-3xl mt-10 md:mt-14 text-center px-1 md:px-0"
         {...sectionAnimationProps(0.4)}
@@ -230,12 +229,13 @@ export default function Home() {
         <h2 className="text-5xl font-bold uppercase mb-6 animated-concrete-text">
           F*CK YEAH, CONCRETE!
         </h2>
-        <div className="bg-neutral-800/60 backdrop-blur-md border border-neutral-700/50 shadow-xl rounded-2xl p-3 md:p-4 inline-block">
-          <img
+        <div className="bg-neutral-800/60 backdrop-blur-md border border-neutral-700/50 shadow-xl rounded-2xl p-3 md:p-4 inline-block relative" style={{ maxWidth: '600px' }}>
+          <Image
             src="/images/dandelion_meme.png"
             alt="F*CK YEAH, CONCRETE meme - a dandelion thriving in concrete next to a wilting rose in soil"
-            className="max-w-full h-auto rounded-lg block"
-            style={{ maxWidth: '600px' }}
+            width={600} 
+            height={400} 
+            className="rounded-lg block"
           />
         </div>
       </motion.div>
@@ -244,5 +244,13 @@ export default function Home() {
         © 2024 Lambro Radio. Tune into different vibrations.
       </footer>
     </main>
+  );
+};
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading page content...</div>}>
+      <PageContent />
+    </Suspense>
   );
 }

@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   // DialogDescription, // Removed as it's unused (commented out in JSX)
-  // DialogFooter, // Removed as it's unused (commented out in JSX)
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input"; // Assuming Input is also a Shadcn component or we use a standard one
 import { Button } from "@/components/ui/button"; // Assuming Button is also a Shadcn component
@@ -88,8 +88,8 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
                             aria-label="Shareable URL"
                         />
                         <Button 
-                            variant="outline_apple" 
-                            size="icon_apple" 
+                            variant="outline" 
+                            size="icon" 
                             onClick={handleCopy}
                             aria-label="Copy URL"
                         >
@@ -103,7 +103,7 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
 
                     {typeof navigator.share === 'function' && (
                         <Button 
-                            variant="default_apple" 
+                            variant="default" 
                             className="w-full"
                             onClick={handleNativeShare}
                         >
@@ -113,9 +113,14 @@ const ShareDialog = ({ isOpen, onClose, url, title }: ShareDialogProps) => {
                     )}
                 </div>
                 
-                {/* <DialogFooter className="sm:justify-start">
-                    <Button variant="outline_apple" onClick={onClose}>Close</Button>
-                </DialogFooter> */}
+                <DialogFooter className="gap-2 sm:justify-start">
+                    {/* <Button 
+                        variant="default" 
+                        size="default" 
+                        onClick={handleDownloadQrCode} 
+                    /> */}
+                    <Button variant="outline" onClick={onClose}>Close</Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
