@@ -87,10 +87,42 @@ async def get_audio_info(payload: dict):
     ydl_opts = {
         'format': 'bestaudio[ext=opus]/bestaudio[ext=m4a]/bestaudio/best',
         'noplaylist': True,
-        'quiet': True,        # Already implicitly True by not capturing stdout/stderr from ydl object
-        'no_warnings': True,  # Suppress warnings
-        'extract_flat': 'discard_in_playlist', # If it's a playlist, don't extract info for each item
-        # 'dumpjson': True, # Could be used if we only want the JSON info without simulating download
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': 'discard_in_playlist',
+        # Anti-bot detection bypass options
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'referer': 'https://www.youtube.com/',
+        'http_headers': {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+        },
+        # YouTube-specific options
+        'extractor_args': {
+            'youtube': {
+                'skip': ['hls', 'dash'],  # Skip adaptive formats that might be harder to access
+                'player_client': ['android', 'web'],  # Try different player clients
+                'player_skip': ['configs'],  # Skip player config checks
+            }
+        },
+        # Retry options
+        'retries': 3,
+        'fragment_retries': 3,
+        'extractor_retries': 3,
+        'file_access_retries': 3,
+        # Sleep between requests to avoid rate limiting
+        'sleep_interval': 1,
+        'max_sleep_interval': 5,
+        'sleep_interval_subtitles': 1,
     }
     try:
         # We are calling extract_info with download=False, so it should only fetch metadata.
@@ -141,12 +173,34 @@ async def get_audio_info(payload: dict):
                 raise HTTPException(status_code=404, detail="Suitable audio stream not found.")
 
     except yt_dlp.utils.DownloadError as e:
-        print(f"yt-dlp Download Error: {e}")
-        raise HTTPException(status_code=400, detail=f"Error processing YouTube URL: {e}")
+        error_msg = str(e)
+        print(f"yt-dlp Download Error: {error_msg}")
+        
+        # Provide more specific error messages for common YouTube issues
+        if "Video unavailable" in error_msg or "This content isn't available" in error_msg:
+            detail = f"YouTube video is unavailable or blocked. This may be due to geographic restrictions, privacy settings, or anti-bot detection. Error: {error_msg}"
+        elif "Sign in to confirm your age" in error_msg:
+            detail = f"Video requires age verification. Error: {error_msg}"
+        elif "Private video" in error_msg:
+            detail = f"Video is private. Error: {error_msg}"
+        elif "Video has been removed" in error_msg:
+            detail = f"Video has been removed by the user. Error: {error_msg}"
+        else:
+            detail = f"Error processing YouTube URL: {error_msg}"
+            
+        raise HTTPException(status_code=400, detail=detail)
     except Exception as e:
-        print(f"An unexpected error occurred in get_audio_info: {e}")
+        error_msg = str(e)
+        print(f"An unexpected error occurred in get_audio_info: {error_msg}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="Internal server error processing request.")
+        
+        # Check if it's a network-related error
+        if "network" in error_msg.lower() or "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+            detail = f"Network error while accessing YouTube. The server may be experiencing connectivity issues. Error: {error_msg}"
+        else:
+            detail = f"Internal server error processing request: {error_msg}"
+            
+        raise HTTPException(status_code=500, detail=detail)
 
 def calculate_pitch_factor(target_hz: Optional[float], base_hz: float = 440.0) -> Optional[float]:
     if target_hz is None or target_hz <= 0 or base_hz <= 0:
