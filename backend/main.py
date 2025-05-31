@@ -106,53 +106,118 @@ async def get_audio_info(payload: dict):
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
         },
-        # YouTube-specific options
+        # YouTube-specific options for better compatibility
         'extractor_args': {
             'youtube': {
                 'skip': ['hls', 'dash'],  # Skip adaptive formats that might be harder to access
-                'player_client': ['android', 'web'],  # Try different player clients
+                'player_client': ['android_creator', 'android_music', 'android', 'web'],  # Try different player clients in order
                 'player_skip': ['configs'],  # Skip player config checks
+                'innertube_host': 'studio.youtube.com',  # Use alternate API host
+                'innertube_key': None,  # Let yt-dlp auto-detect
+                'po_token': None,  # Proof of origin token (auto-detect)
+                'visitor_data': None,  # Visitor data (auto-detect)
             }
         },
+        # Additional bypass options
+        'force_json': False,
+        'simulate': False,
+        'listformats': False,
         # Retry options
-        'retries': 3,
-        'fragment_retries': 3,
-        'extractor_retries': 3,
+        'retries': 5,
+        'fragment_retries': 5,
+        'extractor_retries': 5,
         'file_access_retries': 3,
         # Sleep between requests to avoid rate limiting
-        'sleep_interval': 1,
-        'max_sleep_interval': 5,
+        'sleep_interval': 2,
+        'max_sleep_interval': 10,
         'sleep_interval_subtitles': 1,
+        # Additional headers and options
+        'cookiefile': None,  # No cookies initially
+        'age_limit': None,   # No age limit
+        'geo_bypass': True,  # Try to bypass geo-restrictions
+        'geo_bypass_country': 'US',  # Pretend to be from US
     }
     try:
+        # Primary attempt with enhanced anti-bot configuration
+        info = None
+        error_messages = []
+        
+        # Try multiple extraction strategies
+        strategies = [
+            # Strategy 1: Enhanced configuration with multiple player clients
+            ydl_opts,
+            # Strategy 2: Minimal configuration (fallback)
+            {
+                'format': 'bestaudio/best',
+                'noplaylist': True,
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android_creator'],  # Often works when others fail
+                    }
+                },
+                'user_agent': 'com.google.android.youtube/19.09.36 (Linux; U; Android 11) gzip',  # Android YouTube app
+            },
+            # Strategy 3: Web-based with minimal headers
+            {
+                'format': 'bestaudio/best',
+                'noplaylist': True,
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['web'],
+                    }
+                },
+            }
+        ]
+        
+        for i, strategy_opts in enumerate(strategies):
+            try:
+                print(f"Attempting extraction strategy {i + 1}...")
+                with yt_dlp.YoutubeDL(strategy_opts) as ydl:
+                    info = await asyncio.to_thread(ydl.extract_info, url, download=False)
+                    if info:
+                        print(f"Strategy {i + 1} succeeded!")
+                        break
+            except Exception as strategy_error:
+                error_msg = f"Strategy {i + 1} failed: {str(strategy_error)}"
+                print(error_msg)
+                error_messages.append(error_msg)
+                continue
+        
+        if not info:
+            # All strategies failed
+            combined_errors = " | ".join(error_messages)
+            raise Exception(f"All extraction strategies failed. Errors: {combined_errors}")
+
         # We are calling extract_info with download=False, so it should only fetch metadata.
         # The format string primarily influences which URL is chosen from the available formats.
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = await asyncio.to_thread(ydl.extract_info, url, download=False)
+        
+        # yt-dlp with download=False and a good format selector should ideally fill 'url'
+        # at the top level of 'info' if a direct link matching the criteria is found.
+        # Otherwise, we might still need to iterate formats if 'url' is not populated at the top level.
 
-            # yt-dlp with download=False and a good format selector should ideally fill 'url'
-            # at the top level of 'info' if a direct link matching the criteria is found.
-            # Otherwise, we might still need to iterate formats if 'url' is not populated at the top level.
+        audio_url = info.get('url')  # This is often populated for single videos with good format selection
 
-            audio_url = info.get('url') # This is often populated for single videos with good format selection
-
-            if not audio_url: # Fallback: iterate through formats if top-level URL isn't what we want
-                print("Top-level 'url' not found or not suitable, iterating formats...")
-                selected_format = None
-                for f in info.get('formats', []):
-                    # Prioritize opus, then m4a (aac), then any other audio-only format
-                     if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
-                        if f.get('ext') == 'opus':
-                            selected_format = f
-                            break
-                        elif f.get('ext') == 'm4a' and not selected_format:
-                            selected_format = f
-                        elif not selected_format: # First audio-only if opus/m4a not found
-                            selected_format = f
-                
-                if selected_format:
-                    audio_url = selected_format.get('url')
-                    print(f"Selected audio URL from formats list: {audio_url} (ext: {selected_format.get('ext')})")
+        if not audio_url:  # Fallback: iterate through formats if top-level URL isn't what we want
+            print("Top-level 'url' not found or not suitable, iterating formats...")
+            selected_format = None
+            for f in info.get('formats', []):
+                # Prioritize opus, then m4a (aac), then any other audio-only format
+                if f.get('acodec') != 'none' and f.get('vcodec') == 'none' and f.get('url'):
+                    if f.get('ext') == 'opus':
+                        selected_format = f
+                        break
+                    elif f.get('ext') == 'm4a' and not selected_format:
+                        selected_format = f
+                    elif not selected_format:  # First audio-only if opus/m4a not found
+                        selected_format = f
+            
+            if selected_format:
+                audio_url = selected_format.get('url')
+                print(f"Selected audio URL from formats list: {audio_url} (ext: {selected_format.get('ext')})")
 
 
             # Return info or raise error
