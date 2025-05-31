@@ -23,6 +23,8 @@ origins = [
     "http://127.0.0.1:3000",
     "http://localhost:3002",  # Your current Next.js port
     "http://127.0.0.1:3002",
+    "https://*.vercel.app",   # All Vercel app subdomains
+    "https://lambro-radio.vercel.app",  # Your specific Vercel domain (update this with your actual domain)
 ]
 
 app.add_middleware(
@@ -41,6 +43,27 @@ audio_info_cache = LRUCache(maxsize=128)
 @app.get("/")
 async def read_root():
     return {"message": "Welcome to Lambro Radio Backend"}
+
+@app.get("/keep-alive")
+async def keep_alive():
+    """
+    Keep-alive endpoint to prevent server from spinning down.
+    This endpoint can be called periodically to keep the server active.
+    """
+    return {
+        "status": "alive",
+        "message": "Server is active",
+        "timestamp": asyncio.get_event_loop().time()
+    }
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for monitoring"""
+    return {
+        "status": "healthy",
+        "service": "Lambro Radio Backend",
+        "version": "1.0.0"
+    }
 
 @app.post("/get_audio_info")
 async def get_audio_info(payload: dict):
