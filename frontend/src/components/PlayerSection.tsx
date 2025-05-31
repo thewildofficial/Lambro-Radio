@@ -128,7 +128,8 @@ const PlayerSection: React.FC<PlayerSectionProps> = ({
         frequency: targetFreqValue
       });
       
-      const response = await fetch('http://localhost:8000/process_audio', {
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
+      const response = await fetch(`${backendUrl}/process_audio`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
