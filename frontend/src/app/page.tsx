@@ -61,10 +61,9 @@ const PageContent: React.FC = () => {
 
     try {
       const requestBody = { url: youtubeUrl };
-      console.log('[page.tsx] handleLoadAudio: Fetching /get_audio_info. Request body:', JSON.stringify(requestBody));
+      console.log('[page.tsx] handleLoadAudio: Fetching /api/get_audio_info. Request body:', JSON.stringify(requestBody));
       
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
-      const response = await fetch(`${backendUrl}/get_audio_info`, {
+      const response = await fetch('/api/get_audio_info', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -8,6 +8,7 @@ import math
 import asyncio
 import traceback
 import subprocess
+import os
 from cachetools import LRUCache
 from typing import Optional, Any
 import soundfile as sf
@@ -106,6 +107,8 @@ async def get_audio_info(payload: dict):
             'Sec-Fetch-User': '?1',
             'Cache-Control': 'max-age=0',
         },
+        # Proxy configuration for bypassing IP blocks
+        'proxy': proxy_url if proxy_url else None,
         # YouTube-specific options for better compatibility
         'extractor_args': {
             'youtube': {
@@ -136,6 +139,15 @@ async def get_audio_info(payload: dict):
         'age_limit': None,   # No age limit
         'geo_bypass': True,  # Try to bypass geo-restrictions
         'geo_bypass_country': 'US',  # Pretend to be from US
+    }
+    
+    # Add proxy configuration if available (for cloud hosting environments)
+    proxy_url = os.environ.get('PROXY_URL')
+    if proxy_url:
+        print(f"Using proxy: {proxy_url}")
+        ydl_opts['proxy'] = proxy_url
+        if os.environ.get('PROXY_USER') and os.environ.get('PROXY_PASS'):
+            ydl_opts['proxy'] = f"http://{os.environ.get('PROXY_USER')}:{os.environ.get('PROXY_PASS')}@{proxy_url.replace('http://', '')}"
     }
     try:
         # Primary attempt with enhanced anti-bot configuration

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from 'next/script';
-import KeepAlive from '@/components/KeepAlive';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -55,9 +54,6 @@ export default function RootLayout({
             {children}
           </main>
         </div>
-        
-        {/* Keep-alive component for backend connectivity */}
-        <KeepAlive />
         
         {/* Umami Analytics Script */}
         {process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL && process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (

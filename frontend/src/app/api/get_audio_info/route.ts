@@ -1,34 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
-
+// This route now proxies to our Python Vercel Function
 export async function POST(request: NextRequest) {
   try {
-    const requestBody = await request.json();
+    const payload = await request.json();
     
-    const backendResponse = await fetch(`${BACKEND_URL}/get_audio_info`, {
+    // Call our Python Vercel Function
+    const response = await fetch(`${request.nextUrl.origin}/api/get_audio_info.py`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
       },
-      body: JSON.stringify(requestBody),
+      body: JSON.stringify(payload),
     });
     
-    const responseData = await backendResponse.json();
+    const data = await response.json();
     
-    if (!backendResponse.ok) {
-      return NextResponse.json(
-        { error: responseData.detail || 'Failed to fetch audio info from backend' },
-        { status: backendResponse.status }
-      );
+    if (!response.ok) {
+      return NextResponse.json(data, { status: response.status });
     }
     
-    return NextResponse.json(responseData);
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Error proxying get_audio_info request:', error);
+    console.error('Error in get_audio_info route:', error);
     return NextResponse.json(
-      { error: 'Internal server error while fetching audio info' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
